@@ -8,6 +8,14 @@ namespace Slic3rPostProcessing
 {
 	internal class Program
 	{
+		/// <summary>
+		/// Post processing for Slic3r to color the toolpaths to view in Craftware
+		/// </summary>
+		/// <param name="args">GCode file fresh out from Slic3r.</param>
+		/// <remarks>The option `verbose` in Slic3r, needs to be set to true.
+		/// and also this `before layer-change-G-code` needs to be in place: `;layer:[layer_num];`.
+		/// Start G-Code: `; END Header`.
+		/// End G-Code: `; END Footer`.</remarks>
 		private static void Main(string[] args)
 		{
 			string newfilename = Path.Combine(Path.GetDirectoryName(args[0]), "temp_newfilename.gcode");
@@ -35,18 +43,22 @@ namespace Slic3rPostProcessing
 					{
 						string line = lines[i];
 
-						if (line.Contains(";layer:0;") | line.Contains("; filament used"))
+						if (line.Contains("; END Header"))
 						{
 							StartGCode = true;
 						}
 
-						if (line.Contains("; filament used"))
+						if (line.Contains("; END Footer"))
 						{
 							EndGCode = true;
 						}
 
 						if (StartGCode == true & EndGCode == false)
 						{
+							if (line.Contains("; move to first perimeter point"))
+							{
+								lines[i] = line.Replace(" ; move to first perimeter point", null);
+							}
 							if (line.Contains("; move to first infill point"))
 							{
 								lines[i] = line.Replace(" ; move to first infill point", null);
