@@ -16,23 +16,25 @@ namespace Slic3rPostProcessing
 		/// and also this `before layer-change-G-code` needs to be in place: `;layer:[layer_num];`.
 		/// Start G-Code: `; END Header`.
 		/// End G-Code: `; END Footer`.</remarks>
-		private static void Main(string[] args)
+		private static int Main(string[] args)
 		{
-			string newfilename = Path.Combine(Path.GetDirectoryName(args[0]), "temp_newfilename.gcode");
-
 			if (args.Length != 1)
 			{
-				// Environment.Exit(0);
+				// Console.WriteLine("I need an arguement; your's not good!");
+				Environment.Exit(1);
+				return 1;
 			}
 			else
 			{
 				var lines = File.ReadAllLines(args[0]).ToList();
 
 				Console.WriteLine("Running " + args[0]);
+				string newfilename = Path.Combine(Path.GetDirectoryName(args[0]), "temp_newfilename.gcode");
 
 				int insertedSkirtSegment = 0;
 				int insertedInfillSegment = 0;
 				int insertedSupportSegment = 0;
+				int insertedSoftSupportSegment = 0;
 				int insertedPerimeterSegment = 0;
 				bool StartGCode = false;
 				bool EndGCode = false;
@@ -63,6 +65,10 @@ namespace Slic3rPostProcessing
 							{
 								lines[i] = line.Replace(" ; move to first infill point", null);
 							}
+							if (line.Contains("; move to first support material interface point"))
+							{
+								lines[i] = line.Replace(" ; move to first support material interface point", null);
+							}
 
 							if (line.Contains("; skirt"))
 							{
@@ -70,6 +76,7 @@ namespace Slic3rPostProcessing
 								insertedInfillSegment = 0;
 								insertedSupportSegment = 0;
 								insertedPerimeterSegment = 0;
+								insertedSoftSupportSegment = 0;
 
 								// Console.WriteLine(" -->  " + line);
 
@@ -83,6 +90,7 @@ namespace Slic3rPostProcessing
 									lines[i + 1] = line.Replace(" ; skirt", null);
 									insertedSkirtSegment = i;
 								}
+								continue;
 							}
 
 							if (line.Contains("; infill"))
@@ -91,6 +99,7 @@ namespace Slic3rPostProcessing
 								insertedSkirtSegment = 0;
 								insertedSupportSegment = 0;
 								insertedPerimeterSegment = 0;
+								insertedSoftSupportSegment = 0;
 
 								//Console.WriteLine(" -->  " + line);
 
@@ -104,6 +113,30 @@ namespace Slic3rPostProcessing
 									lines[i + 1] = line.Replace(" ; infill", null);
 									insertedInfillSegment = i;
 								}
+								continue;
+							}
+
+							if (line.Contains("; support material interface"))
+							{
+								// RESET counter
+								insertedSkirtSegment = 0;
+								insertedSupportSegment = 0;
+								insertedPerimeterSegment = 0;
+								insertedSupportSegment = 0;
+
+								//Console.WriteLine(" -->  " + line);
+
+								if (lines[insertedSoftSupportSegment].Contains("segType:SoftSupport") | lines[i - 1].Contains("segType:SoftSupport"))
+								{
+									lines[i] = line.Replace(" ; support material interface", null);
+								}
+								else
+								{
+									lines.Insert(i, ";segType:SoftSupport");
+									lines[i + 1] = line.Replace(" ; support material interface", null);
+									insertedSoftSupportSegment = i;
+								}
+								continue;
 							}
 
 							if (line.Contains("; support material"))
@@ -112,35 +145,21 @@ namespace Slic3rPostProcessing
 								insertedSkirtSegment = 0;
 								insertedInfillSegment = 0;
 								insertedPerimeterSegment = 0;
+								insertedSoftSupportSegment = 0;
 
 								//Console.WriteLine(" -->  " + line);
 
-								if ((lines[insertedSupportSegment].Contains("segType:Support") | lines[i - 1].Contains("segType:Support")) | (lines[insertedSupportSegment].Contains("segType:SoftSupport") | lines[i - 1].Contains("segType:SoftSupport")))
+								if (lines[insertedSupportSegment].Contains("segType:Support") | lines[i - 1].Contains("segType:Support"))
 								{
-									if (line.Contains("; support material interface"))
-									{
-										lines[i] = line.Replace(" ; support material interface", null);
-									}
-									else
-									{
-										lines[i] = line.Replace(" ; support material", null);
-									}
+									lines[i] = line.Replace(" ; support material", null);
 								}
 								else
 								{
-									if (line.Contains("; support material interface"))
-									{
-										lines.Insert(i, ";segType:SoftSupport");
-										lines[i + 1] = line.Replace(" ; support material interface", null);
-									}
-									else
-									{
-										lines.Insert(i, ";segType:Support");
-										lines[i + 1] = line.Replace(" ; support material", null);
-									}
-
+									lines.Insert(i, ";segType:Support");
+									lines[i + 1] = line.Replace(" ; support material", null);
 									insertedSupportSegment = i;
 								}
+								continue;
 							}
 
 							if (line.Contains("; perimeter"))
@@ -162,12 +181,15 @@ namespace Slic3rPostProcessing
 									lines[i + 1] = line.Replace(" ; perimeter", null);
 									insertedPerimeterSegment = i;
 								}
+								continue;
 							}
 						}
 					}
 					catch (Exception ex)
 					{
 						Console.Write(ex.ToString());
+						Environment.Exit(1);
+						return 1;
 					}
 				}
 				try
@@ -175,10 +197,15 @@ namespace Slic3rPostProcessing
 					File.WriteAllLines(newfilename, lines);
 					File.Delete(args[0]);
 					File.Move(newfilename, args[0]);
+
+					Environment.Exit(0);
+					return 0;
 				}
 				catch (Exception ex)
 				{
 					Console.Write(ex.ToString());
+					Environment.Exit(1);
+					return 1;
 				}
 			}
 		}
