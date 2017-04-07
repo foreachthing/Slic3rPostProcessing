@@ -13,7 +13,6 @@ namespace Slic3rPostProcessing
 		/// </summary>
 		/// <param name="args">GCode file fresh out from Slic3r.</param>
 		/// <remarks>The option `verbose` in Slic3r, needs to be set to true.
-		/// and also this `before layer-change-G-code` needs to be in place: `;layer:[layer_num];`.
 		/// Start G-Code: `; END Header`.
 		/// End G-Code: `; END Footer`.</remarks>
 		private static int Main(string[] args)
