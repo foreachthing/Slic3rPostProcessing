@@ -67,6 +67,8 @@ namespace Slic3rPostProcessing
 
 						if (StartGCode == true & EndGCode == false)
 						{
+							// todo: regex these things.
+							// I don't do regex ... maybe you do?
 							if (line.Contains("; move to first perimeter point"))
 							{
 								lines[i] = line.Replace(" ; move to first perimeter point", null);
