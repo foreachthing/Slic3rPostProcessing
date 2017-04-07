@@ -1,0 +1,7 @@
+C:\Users\fuerer_g\Source\Repos\Slic3rPostProcessing\Slic3rPostProcessing\bin\Debug\Slic3rPostProcessing.exe
+C:\Users\fuerer_g\Source\Repos\Slic3rPostProcessing\Slic3rPostProcessing\bin\Debug\Slic3rPostProcessing.pdb
+C:\Users\fuerer_g\Source\Repos\Slic3rPostProcessing\Slic3rPostProcessing\obj\Debug\Slic3rPostProcessing.exe
+C:\Users\fuerer_g\Source\Repos\Slic3rPostProcessing\Slic3rPostProcessing\obj\Debug\Slic3rPostProcessing.pdb
+C:\Users\fuerer_g\Source\Repos\Slic3rPostProcessing\Slic3rPostProcessing\obj\Debug\Slic3rPostProcessing.csprojResolveAssemblyReference.cache
+c:\MyProgramme\Slic3r_PostProcessing\Slic3rPostProcessing\Slic3rPostProcessing\obj\Debug\Slic3rPostProcessing.exe
+c:\MyProgramme\Slic3r_PostProcessing\Slic3rPostProcessing\Slic3rPostProcessing\obj\Debug\Slic3rPostProcessing.pdb
