@@ -1,6 +1,11 @@
 # Slic3r-Post-Processing
+
+## What it does
 Post processing for [Slic3r](http://slic3r.org) to color the toolpaths to view in [CraftWare](https://craftunique.com/craftware).
 This tool basically looks for `; skirt` and collects this block _(skirts, perimeter, softsupport and support are supported)_ and writes `;segType:Skirt` before. Then, it removes the verbose output to reduce the file size.
+
+### Download
+[Latest release](https://github.com/foreachthing/Slic3rPostProcessing/releases) can be found here.
 
 ## to use in Slic3r
 * The option `verbose` in Slic3r _(Slic3r -> Print Settings -> Output options)_, needs to be set to true.
