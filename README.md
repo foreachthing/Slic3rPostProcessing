@@ -10,3 +10,10 @@ This tool basically looks for `; skirt` and collects this block _(skirts, perime
 
 
 ![Print Settings](https://github.com/foreachthing/Slic3rPostProcessing/blob/master/slic3r_print_settings.png)
+
+
+GCode in CraftWare:
+* before:
+![before](https://github.com/foreachthing/Slic3rPostProcessing/blob/master/slicer_before.png)
+* after:
+![after](https://github.com/foreachthing/Slic3rPostProcessing/blob/master/slicer_after.png)
