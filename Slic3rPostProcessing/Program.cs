@@ -18,9 +18,19 @@ namespace Slic3rPostProcessing
 		/// End G-Code: `; END Footer`.</remarks>
 		private static int Main(string[] args)
 		{
-			if (args.Length != 1)
+			if (args.Length < 1)
 			{
 				// Console.WriteLine("I need an arguement; your's not good!");
+				Console.WriteLine(Environment.NewLine + "This, for use in Slic3r.");
+				Console.WriteLine("Slic3r - Print Settings");
+				Console.WriteLine("        -> Output options");
+				Console.WriteLine("        -> Enable Verbose G-Code (important!)");
+				Console.WriteLine("        -> Put full filename to exe in Post-Processing Scripts.");
+
+				Console.WriteLine(Environment.NewLine + "To use in Command line:");
+				Console.WriteLine("Example: Slic3rPostProcessing.exe \"c:\\temp\\file.gcode\" [enter] ");
+				Console.WriteLine(Environment.NewLine + "NOTE: Passed file will be overwritten if no output filename is passed.");
+				Console.WriteLine("Example: Slic3rPostProcessing.exe \"c:\\temp\\inputfile.gcode\"  \"c:\\temp\\outputfile.gcode\" [enter] ");
 				Environment.Exit(1);
 				return 1;
 			}
@@ -28,7 +38,8 @@ namespace Slic3rPostProcessing
 			{
 				var lines = File.ReadAllLines(args[0]).ToList();
 
-				Console.WriteLine("Running " + args[0]);
+				Console.WriteLine(Environment.NewLine + "Running " + args[0]);
+
 				string newfilename = Path.Combine(Path.GetDirectoryName(args[0]), "temp_newfilename.gcode");
 
 				int insertedSkirtSegment = 0;
@@ -195,9 +206,19 @@ namespace Slic3rPostProcessing
 				try
 				{
 					File.WriteAllLines(newfilename, lines);
-					File.Delete(args[0]);
-					File.Move(newfilename, args[0]);
 
+					if (args.Length > 1)
+					{
+						File.Delete(args[1]);
+						File.Move(newfilename, args[1]);
+					}
+					else
+					{
+						File.Delete(args[0]);
+						File.Move(newfilename, args[0]);
+					}
+
+					Console.WriteLine(Environment.NewLine + "All done - Thank you.");
 					Environment.Exit(0);
 					return 0;
 				}
