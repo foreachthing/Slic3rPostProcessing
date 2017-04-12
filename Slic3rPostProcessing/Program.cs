@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Slic3rPostProcessing
 {
@@ -48,6 +49,9 @@ namespace Slic3rPostProcessing
 				int insertedPerimeterSegment = 0;
 				bool StartGCode = false;
 				bool EndGCode = false;
+				bool StartPoint = false;
+				bool FirstLine = false;
+				string FirstLayer = null;
 
 				for (int i = 0; i < lines.Count; i++)
 				{
@@ -80,6 +84,38 @@ namespace Slic3rPostProcessing
 							if (line.Contains("; move to first support material interface point"))
 							{
 								lines[i] = line.Replace(" ; move to first support material interface point", null);
+							}
+
+							if (!StartPoint | !FirstLine)
+							{
+								if (FirstLayer == null)
+								{
+									Match match0 = Regex.Match(line, @"^([gG]1)\s([zZ](-?(0|[1-9]\d*)(\.\d+)?))\s([fF](-?(0|[1-9]\d*)(\.\d+)?))(.*)$", RegexOptions.IgnoreCase);
+
+									// Here we check the Match instance.
+									if (match0.Success)
+									{
+										FirstLayer = match0.Groups[2].Value;
+										Console.WriteLine("First Layer Height: " + FirstLayer + " mm");
+										lines.RemoveAt(i);
+										i -= 1;
+										FirstLine = true;
+										continue;
+									}
+								}
+
+								if (FirstLayer != null)
+								{
+									Match match1 = Regex.Match(line, @"^([gG]1)\s([xX]-?(0|[1-9]\d*)(\.\d+)?)\s([yY]-?(0|[1-9]\d*)(\.\d+)?)\s([fF]-?(0|[1-9]\d*)(\.\d+)?)\s((; move to first)\s(\w+).*(point))$", RegexOptions.IgnoreCase);
+									// Here we check the Match instance.
+									if (match1.Success)
+									{
+										lines[i] = line.Replace(match1.Groups[8].Value, FirstLayer + " " + match1.Groups[8].Value);
+										Console.WriteLine("Start Point: " + lines[i]);
+										StartPoint = true;
+										continue;
+									}
+								}
 							}
 
 							if (line.Contains("; skirt"))
