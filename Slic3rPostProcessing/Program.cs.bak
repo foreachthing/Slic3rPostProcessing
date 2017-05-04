@@ -3,18 +3,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Text.RegularExpressions;
 
 namespace Slic3rPostProcessing
 {
 	internal class Program
 	{
-		public static int insertedSkirtSegment { get; set; }
-		public static int insertedInfillSegment { get; set; }
-		public static int insertedSupportSegment { get; set; }
-		public static int insertedSoftSupportSegment { get; set; }
-		public static int insertedPerimeterSegment { get; set; }
-
 		/// <summary>
 		/// Post processing for Slic3r to color the toolpaths to view in Craftware
 		/// </summary>
@@ -28,7 +21,7 @@ namespace Slic3rPostProcessing
 			if (args.Length < 1)
 			{
 				// Console.WriteLine("I need an arguement; your's not good!");
-				Console.WriteLine(Environment.NewLine + "This, for use with Slic3r.");
+				Console.WriteLine(Environment.NewLine + "This, for use in Slic3r.");
 				Console.WriteLine("Slic3r - Print Settings");
 				Console.WriteLine("        -> Output options");
 				Console.WriteLine("        -> Enable Verbose G-Code (important!)");
@@ -43,33 +36,19 @@ namespace Slic3rPostProcessing
 			}
 			else
 			{
-				int wait = 0;
-				do
-				{
-					// wait here until the file exists.
-					// It can take some time to copy the .tmp to .gcode.
-					System.Threading.Thread.Sleep(500);
-					wait++;
-
-					if (wait > 20 * 6)
-					{
-						Console.WriteLine(Environment.NewLine + "Time's up! I've been waiting for a minute now.");
-						Console.WriteLine(Environment.NewLine + "I'll assume, there is no " + args[0] + " and abort. Please retry, if you like, after the file actually exists.");
-					}
-				} while (!File.Exists(args[0]));
-
 				var lines = File.ReadAllLines(args[0]).ToList();
 
 				Console.WriteLine(Environment.NewLine + "Running " + args[0]);
 
 				string newfilename = Path.Combine(Path.GetDirectoryName(args[0]), "temp_newfilename.gcode");
 
-				ResetAllOtherCounters();
+				int insertedSkirtSegment = 0;
+				int insertedInfillSegment = 0;
+				int insertedSupportSegment = 0;
+				int insertedSoftSupportSegment = 0;
+				int insertedPerimeterSegment = 0;
 				bool StartGCode = false;
 				bool EndGCode = false;
-				bool StartPoint = false;
-				bool FirstLine = false;
-				string FirstLayer = null;
 
 				for (int i = 0; i < lines.Count; i++)
 				{
@@ -87,76 +66,51 @@ namespace Slic3rPostProcessing
 							EndGCode = true;
 						}
 
-						if (line.Contains("; # # # # # # Header"))
-						{
-							StartGCode = false;
-						}
-
-						if (line.Contains("; # # # # # # Footer"))
-						{
-							EndGCode = true;
-						}
-
 						if (StartGCode == true & EndGCode == false)
 						{
-							if (!StartPoint | !FirstLine)
+							if (line.Contains("; move to first perimeter point"))
 							{
-								if (FirstLayer == null)
-								{
-									Match match0 = Regex.Match(line, @"^([gG]1)\s([zZ](-?(0|[1-9]\d*)(\.\d+)?))\s([fF](-?(0|[1-9]\d*)(\.\d+)?))(.*)$", RegexOptions.IgnoreCase);
-
-									// Here we check the Match instance.
-									if (match0.Success)
-									{
-										FirstLayer = match0.Groups[2].Value;
-										Console.WriteLine("First Layer Height: " + FirstLayer + " mm");
-										lines.RemoveAt(i);
-										i -= 1;
-										FirstLine = true;
-										continue;
-									}
-								}
-
-								if (FirstLayer != null)
-								{
-									Match match1 = Regex.Match(line, @"^([gG]1)\s([xX]-?(0|[1-9]\d*)(\.\d+)?)\s([yY]-?(0|[1-9]\d*)(\.\d+)?)\s([fF]-?(0|[1-9]\d*)(\.\d+)?)\s((; move to first)\s(\w+).*(point))$", RegexOptions.IgnoreCase);
-									// Here we check the Match instance.
-									if (match1.Success)
-									{
-										lines[i] = line.Replace(match1.Groups[8].Value, FirstLayer + " " + match1.Groups[8].Value);
-										Console.WriteLine("Start Point: " + lines[i]);
-										StartPoint = true;
-										continue;
-									}
-								}
+								lines[i] = line.Replace(" ; move to first perimeter point", null);
+							}
+							if (line.Contains("; move to first infill point"))
+							{
+								lines[i] = line.Replace(" ; move to first infill point", null);
+							}
+							if (line.Contains("; move to first support material interface point"))
+							{
+								lines[i] = line.Replace(" ; move to first support material interface point", null);
 							}
 
-							if (line.EndsWith("; skirt") | line.EndsWith(" ; brim"))
+							if (line.Contains("; skirt"))
 							{
 								// RESET counter
-								ResetAllOtherCounters("insertedSkirtSegment");
+								insertedInfillSegment = 0;
+								insertedSupportSegment = 0;
+								insertedPerimeterSegment = 0;
+								insertedSoftSupportSegment = 0;
 
 								// Console.WriteLine(" -->  " + line);
 
 								if (lines[insertedSkirtSegment].Contains("segType:Skirt") | lines[i - 1].Contains("segType:Skirt"))
 								{
 									lines[i] = line.Replace(" ; skirt", null);
-									lines[i] = line.Replace(" ; brim", null);
 								}
 								else
 								{
 									lines.Insert(i, ";segType:Skirt");
 									lines[i + 1] = line.Replace(" ; skirt", null);
-									lines[i + 1] = line.Replace(" ; brim", null);
 									insertedSkirtSegment = i;
 								}
 								continue;
 							}
 
-							if (line.EndsWith("; infill"))
+							if (line.Contains("; infill"))
 							{
 								// RESET counter
-								ResetAllOtherCounters("insertedInfillSegment");
+								insertedSkirtSegment = 0;
+								insertedSupportSegment = 0;
+								insertedPerimeterSegment = 0;
+								insertedSoftSupportSegment = 0;
 
 								//Console.WriteLine(" -->  " + line);
 
@@ -173,10 +127,13 @@ namespace Slic3rPostProcessing
 								continue;
 							}
 
-							if (line.EndsWith("; support material interface"))
+							if (line.Contains("; support material interface"))
 							{
 								// RESET counter
-								ResetAllOtherCounters("insertedSoftSupportSegment");
+								insertedSkirtSegment = 0;
+								insertedSupportSegment = 0;
+								insertedPerimeterSegment = 0;
+								insertedSupportSegment = 0;
 
 								//Console.WriteLine(" -->  " + line);
 
@@ -193,10 +150,13 @@ namespace Slic3rPostProcessing
 								continue;
 							}
 
-							if (line.EndsWith("; support material"))
+							if (line.Contains("; support material"))
 							{
 								// RESET counter
-								ResetAllOtherCounters("insertedSupportSegment");
+								insertedSkirtSegment = 0;
+								insertedInfillSegment = 0;
+								insertedPerimeterSegment = 0;
+								insertedSoftSupportSegment = 0;
 
 								//Console.WriteLine(" -->  " + line);
 
@@ -213,10 +173,12 @@ namespace Slic3rPostProcessing
 								continue;
 							}
 
-							if (line.EndsWith("; perimeter"))
+							if (line.Contains("; perimeter"))
 							{
 								// RESET counter
-								ResetAllOtherCounters("insertedPerimeterSegment");
+								insertedSkirtSegment = 0;
+								insertedInfillSegment = 0;
+								insertedSupportSegment = 0;
 
 								//Console.WriteLine(" -->  " + line);
 
@@ -231,12 +193,6 @@ namespace Slic3rPostProcessing
 									insertedPerimeterSegment = i;
 								}
 								continue;
-							}
-
-							// Remove leftover comments
-							if (line.Contains(" ;"))
-							{
-								lines[i] = line.Split(';')[0].TrimEnd();
 							}
 						}
 					}
@@ -272,34 +228,6 @@ namespace Slic3rPostProcessing
 					Environment.Exit(1);
 					return 1;
 				}
-			}
-		}
-
-		/// <summary>
-		/// Resets all other Properties to their respective default.
-		/// </summary>
-		/// <param name="PropertyNOTToReset">Name of Property. Do NOT reset this Property!</param>
-		public static void ResetAllOtherCounters(string PropertyNOTToReset = "empty")
-		{
-			if (PropertyNOTToReset != "insertedInfillSegment")
-			{
-				insertedInfillSegment = 0;
-			}
-			if (PropertyNOTToReset != "insertedSupportSegment")
-			{
-				insertedSupportSegment = 0;
-			}
-			if (PropertyNOTToReset != "insertedPerimeterSegment")
-			{
-				insertedPerimeterSegment = 0;
-			}
-			if (PropertyNOTToReset != "insertedSoftSupportSegment")
-			{
-				insertedSoftSupportSegment = 0;
-			}
-			if (PropertyNOTToReset != "insertedSkirtSegment")
-			{
-				insertedSoftSupportSegment = 0;
 			}
 		}
 	}
