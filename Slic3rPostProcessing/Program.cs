@@ -54,6 +54,14 @@ namespace Slic3rPostProcessing
 			try
 			{
 				extra = p.Parse(args);
+
+				if (extra.Count == 1 & args.Length == 1)
+				{
+					if (extra[0].ToLower().EndsWith("gcode"))
+					{
+						strINputFile = extra[0];
+					}
+				}
 			}
 			catch (OptionException e)
 			{
@@ -78,6 +86,10 @@ namespace Slic3rPostProcessing
 				Environment.Exit(1);
 				return 1;
 			}
+
+			//Logger.LogInfo(strINputFile);
+			//Console.WriteLine("Press any key to continue . . .");
+			//Console.ReadKey();
 
 			if (strINputFile == null)
 			{
@@ -130,31 +142,43 @@ namespace Slic3rPostProcessing
 				int repprogint = cLines * repprogress / 100;
 				int repnewprog = repprogint;
 
-				for (int i = 0; i < cLines; i++)
+				for (int i = 0; i < cLines - 1; i++)
 				{
 					try
 					{
 						line = lines[i];
 						Logger.LogVerbose((i + 1).ToString("N", nfi) + ": " + line);
 
-						if (line.Contains("; END Header"))
+						if (i == repnewprog)
+						{
+							Double progress = (Double)i / (Double)cLines;
+
+							Logger.LogInfo("Progress: " + Math.Round(progress * 100d, 0) + "%");
+							repnewprog += repprogint;
+						}
+
+						if (line.Contains(";layer:0;"))
 						{
 							StartGCode = true;
+							continue;
 						}
 
 						if (line.Contains("; END Footer"))
 						{
 							EndGCode = true;
+							continue;
 						}
 
 						if (line.Contains("; # # # # # # Header"))
 						{
 							StartGCode = false;
+							continue;
 						}
 
 						if (line.Contains("; # # # # # # Footer"))
 						{
 							EndGCode = true;
+							continue;
 						}
 
 						if (StartGCode == true & EndGCode == false)
@@ -173,7 +197,7 @@ namespace Slic3rPostProcessing
 										lines.RemoveAt(i);
 										i -= 1;
 										FirstLine = true;
-										//	continue;
+										continue;
 									}
 								}
 
@@ -186,7 +210,7 @@ namespace Slic3rPostProcessing
 										lines[i] = line.Replace(match1.Groups[8].Value, FirstLayer + " " + match1.Groups[8].Value);
 										Logger.LogVerbose("Start Point: " + lines[i]);
 										StartPoint = true;
-										//	continue;
+										continue;
 									}
 								}
 							}
@@ -200,17 +224,15 @@ namespace Slic3rPostProcessing
 
 								if (lines[insertedSkirtSegment].Contains("segType:Skirt") | lines[i - 1].Contains("segType:Skirt"))
 								{
-									lines[i] = line.Replace(" ; skirt", null);
-									lines[i] = line.Replace(" ; brim", null);
+									lines[i] = TrimComment(line);
 								}
 								else
 								{
-									lines.Insert(i, ";segType:Skirt");
-									lines[i + 1] = line.Replace(" ; skirt", null);
-									lines[i + 1] = line.Replace(" ; brim", null);
+									lines[i] = ";segType:Skirt" + Environment.NewLine + TrimComment(line);
+
 									insertedSkirtSegment = i;
 								}
-								//continue;
+								continue;
 							}
 
 							if (line.EndsWith("; infill"))
@@ -222,15 +244,14 @@ namespace Slic3rPostProcessing
 
 								if (lines[insertedInfillSegment].Contains("segType:Infill") | lines[i - 1].Contains("segType:Infill"))
 								{
-									lines[i] = line.Replace(" ; infill", null);
+									lines[i] = TrimComment(line);// line.Replace(" ; infill", null);
 								}
 								else
 								{
-									lines.Insert(i, ";segType:Infill");
-									lines[i + 1] = line.Replace(" ; infill", null);
+									lines[i] = ";segType:Infill" + Environment.NewLine + TrimComment(line);
 									insertedInfillSegment = i;
 								}
-								//continue;
+								continue;
 							}
 
 							if (line.EndsWith("; support material interface"))
@@ -242,15 +263,14 @@ namespace Slic3rPostProcessing
 
 								if (lines[insertedSoftSupportSegment].Contains("segType:SoftSupport") | lines[i - 1].Contains("segType:SoftSupport"))
 								{
-									lines[i] = line.Replace(" ; support material interface", null);
+									lines[i] = TrimComment(line);//line.Replace(" ; support material interface", null);
 								}
 								else
 								{
-									lines.Insert(i, ";segType:SoftSupport");
-									lines[i + 1] = line.Replace(" ; support material interface", null);
+									lines[i] = ";segType:SoftSupport" + Environment.NewLine + TrimComment(line);
 									insertedSoftSupportSegment = i;
 								}
-								//continue;
+								continue;
 							}
 
 							if (line.EndsWith("; support material"))
@@ -262,15 +282,14 @@ namespace Slic3rPostProcessing
 
 								if (lines[insertedSupportSegment].Contains("segType:Support") | lines[i - 1].Contains("segType:Support"))
 								{
-									lines[i] = line.Replace(" ; support material", null);
+									lines[i] = TrimComment(line);//line.Replace(" ; support material", null);
 								}
 								else
 								{
-									lines.Insert(i, ";segType:Support");
-									lines[i + 1] = line.Replace(" ; support material", null);
+									lines[i] = ";segType:Support" + Environment.NewLine + TrimComment(line);
 									insertedSupportSegment = i;
 								}
-								//continue;
+								continue;
 							}
 
 							if (line.EndsWith("; perimeter"))
@@ -282,35 +301,32 @@ namespace Slic3rPostProcessing
 
 								if (lines[insertedPerimeterSegment].Contains("segType:Perimeter") | lines[i - 1].Contains("segType:Perimeter"))
 								{
-									lines[i] = line.Replace(" ; perimeter", null);
+									lines[i] = TrimComment(line);//line.Replace(" ; perimeter", null);
 								}
 								else
 								{
-									lines.Insert(i, ";segType:Perimeter");
-									lines[i + 1] = line.Replace(" ; perimeter", null);
+									lines[i] = ";segType:Perimeter" + Environment.NewLine + TrimComment(line);
 									insertedPerimeterSegment = i;
 								}
-								//continue;
+								continue;
 							}
 
-							// Remove leftover comments
-							if (line.Contains(";"))
-							{
-								lines[i] = line.Split(';')[0].TrimEnd();
-							}
-						}
-
-						if (i == repnewprog)
-						{
-							Double progress = (Double)i / (Double)cLines;
-
-							Logger.LogInfo("Progress: " + Math.Round(progress * 100d, 0) + "%");
-							repnewprog += repprogint;
+							// Remove any leftover comments
+							lines[i] = TrimComment(line);
 						}
 					}
 					catch (Exception ex)
 					{
 						Console.Write(ex.ToString());
+
+#if DEBUG
+						{
+							Logger.LogWarning(ex.ToString());
+							Console.WriteLine("Press any key to continue . . .");
+							Console.ReadKey();
+						}
+#endif
+
 						Environment.Exit(1);
 						return 1;
 					}
@@ -355,6 +371,16 @@ namespace Slic3rPostProcessing
 			}
 		}
 
+		private static string TrimComment(string line)
+		{
+			if (line.Contains(";"))
+			{
+				line = line.Split(';')[0].TrimEnd();
+			}
+
+			return line;
+		}
+
 		private static void ShowHelp(OptionSet p)
 		{
 			Console.WriteLine();
@@ -396,7 +422,7 @@ namespace Slic3rPostProcessing
 			}
 			if (CounterNOT2Reset == -1 || CounterNOT2Reset != DonotReset.SkirtSegment)
 			{
-				insertedSoftSupportSegment = 0;
+				insertedSkirtSegment = 0;
 			}
 		}
 	}
