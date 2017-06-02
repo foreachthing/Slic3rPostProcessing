@@ -4,6 +4,9 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Diagnostics;
+using NDesk.Options;
+using System.Globalization;
 
 namespace Slic3rPostProcessing
 {
@@ -25,19 +28,61 @@ namespace Slic3rPostProcessing
 		/// End G-Code: `; END Footer`.</remarks>
 		private static int Main(string[] args)
 		{
-			if (args.Length < 1)
+			bool show_help = false;
+			bool debugger = false;
+			int verbosity = 3;
+			int repprogress = 5;
+			string strINputFile = null;
+			string strOUTputFile = null;
+
+			var p = new OptionSet() {
+				{ "i|input=", "The {INPUTFILE} to process.",
+					v => strINputFile=v },
+				{ "o|output=", "The {OUTPUTFILE} to copy the processed content to (optional).",
+					v => strOUTputFile=v },
+				{ "h|help",  "Show this message and exit. Nothing will be done.",
+					v => show_help = v != null },
+				{ "d|debug",  "Show debug info if set to true. Default: false.",
+					v => debugger = v != null },
+				{ "v|verbosity=", "Debug message verbosity (0 to 4). Default: 3 (Info). 0 = Off; 1 = Error; 2 = Warning; 3 = Info; 4 = Verbose (will output EVER line of GCode! There will be LOTS of output!)",
+					(int v) => { if ( v >= 0 & v <5) verbosity = v; } },
+				{ "p|progress=", "Report progress ever {PROGRESS} percentage. Default 5.",
+					(int v) => { if ( v >= 0 & v <=100) repprogress = v; } },
+			};
+
+			List<string> extra;
+			try
+			{
+				extra = p.Parse(args);
+			}
+			catch (OptionException e)
+			{
+				Logger.LogError(e.Message);
+				ShowHelp(p);
+				Environment.Exit(1);
+				return 1;
+			}
+
+			////// / / / / / / / / / / / / /
+			// Log writer START
+			Trace.AutoFlush = true;
+			Logger.traceSwitch.Level = (TraceLevel)verbosity;//TraceLevel.Info;
+			Trace.Listeners.Clear();
+
+			TextWriterTraceListener listener = new TextWriterTraceListener(Console.Out);
+			Trace.Listeners.Add(listener);
+
+			if (show_help)
+			{
+				ShowHelp(p);
+				Environment.Exit(1);
+				return 1;
+			}
+
+			if (strINputFile == null)
 			{
 				// Console.WriteLine("I need an arguement; your's not good!");
-				Console.WriteLine(Environment.NewLine + "This, for use with Slic3r.");
-				Console.WriteLine("Slic3r - Print Settings");
-				Console.WriteLine("        -> Output options");
-				Console.WriteLine("        -> Enable Verbose G-Code (important!)");
-				Console.WriteLine("        -> Put full filename to exe in Post-Processing Scripts.");
-
-				Console.WriteLine(Environment.NewLine + "To use in Command line:");
-				Console.WriteLine("Example: Slic3rPostProcessing.exe \"c:\\temp\\file.gcode\" [enter] ");
-				Console.WriteLine(Environment.NewLine + "NOTE: Passed file will be overwritten if no output filename is passed.");
-				Console.WriteLine("Example: Slic3rPostProcessing.exe \"c:\\temp\\inputfile.gcode\"  \"c:\\temp\\outputfile.gcode\" [enter] ");
+				ShowHelp(p);
 				Environment.Exit(1);
 				return 1;
 			}
@@ -48,34 +93,49 @@ namespace Slic3rPostProcessing
 				{
 					// wait here until the file exists.
 					// It can take some time to copy the .tmp to .gcode.
-					System.Threading.Thread.Sleep(500);
+					if (wait > 20)
+					{
+						System.Threading.Thread.Sleep(new TimeSpan(0, 0, 1));
+					}
+					else
+					{
+						System.Threading.Thread.Sleep(50);
+					}
 					wait++;
 
 					if (wait > 20 * 6)
 					{
-						Console.WriteLine(Environment.NewLine + "Time's up! I've been waiting for a minute now.");
-						Console.WriteLine(Environment.NewLine + "I'll assume, there is no " + args[0] + " and abort. Please retry, if you like, after the file actually exists.");
+						Logger.LogInfo("I assume there is no " + strINputFile + " and abort. Please retry, if you like, after the file actually exists.");
 					}
-				} while (!File.Exists(args[0]));
+				} while (!File.Exists(strINputFile));
 
-				var lines = File.ReadAllLines(args[0]).ToList();
+				var lines = File.ReadAllLines(strINputFile).ToList();
+				int cLines = lines.Count;
 
-				Console.WriteLine(Environment.NewLine + "Running " + args[0]);
+				Logger.LogInfo("Running " + strINputFile);
 
-				string newfilename = Path.Combine(Path.GetDirectoryName(args[0]), "temp_newfilename.gcode");
+				NumberFormatInfo nfi = new CultureInfo("de-CH", false).NumberFormat;
+				nfi.NumberDecimalDigits = 0;
+				Logger.LogInfo((cLines - 1).ToString("N", nfi) + " lines of gcode will be processed.");
 
-				ResetAllOtherCounters();
+				string newfilename = Path.Combine(Path.GetDirectoryName(strINputFile), Guid.NewGuid().ToString().Replace("-", "") + ".gcode_temp");
+
+				ResetAllCountersButThis(DonotReset.AllReverseNone);
 				bool StartGCode = false;
 				bool EndGCode = false;
 				bool StartPoint = false;
 				bool FirstLine = false;
 				string FirstLayer = null;
+				string line = null;
+				int repprogint = cLines * repprogress / 100;
+				int repnewprog = repprogint;
 
-				for (int i = 0; i < lines.Count; i++)
+				for (int i = 0; i < cLines; i++)
 				{
 					try
 					{
-						string line = lines[i];
+						line = lines[i];
+						Logger.LogVerbose((i + 1).ToString("N", nfi) + ": " + line);
 
 						if (line.Contains("; END Header"))
 						{
@@ -109,11 +169,11 @@ namespace Slic3rPostProcessing
 									if (match0.Success)
 									{
 										FirstLayer = match0.Groups[2].Value;
-										Console.WriteLine("First Layer Height: " + FirstLayer + " mm");
+										Logger.LogVerbose("First Layer Height: " + FirstLayer + " mm");
 										lines.RemoveAt(i);
 										i -= 1;
 										FirstLine = true;
-										continue;
+										//	continue;
 									}
 								}
 
@@ -124,9 +184,9 @@ namespace Slic3rPostProcessing
 									if (match1.Success)
 									{
 										lines[i] = line.Replace(match1.Groups[8].Value, FirstLayer + " " + match1.Groups[8].Value);
-										Console.WriteLine("Start Point: " + lines[i]);
+										Logger.LogVerbose("Start Point: " + lines[i]);
 										StartPoint = true;
-										continue;
+										//	continue;
 									}
 								}
 							}
@@ -134,9 +194,9 @@ namespace Slic3rPostProcessing
 							if (line.EndsWith("; skirt") | line.EndsWith(" ; brim"))
 							{
 								// RESET counter
-								ResetAllOtherCounters("insertedSkirtSegment");
+								ResetAllCountersButThis(DonotReset.SkirtSegment);
 
-								// Console.WriteLine(" -->  " + line);
+								Logger.LogVerbose(" -->  " + line);
 
 								if (lines[insertedSkirtSegment].Contains("segType:Skirt") | lines[i - 1].Contains("segType:Skirt"))
 								{
@@ -150,15 +210,15 @@ namespace Slic3rPostProcessing
 									lines[i + 1] = line.Replace(" ; brim", null);
 									insertedSkirtSegment = i;
 								}
-								continue;
+								//continue;
 							}
 
 							if (line.EndsWith("; infill"))
 							{
 								// RESET counter
-								ResetAllOtherCounters("insertedInfillSegment");
+								ResetAllCountersButThis(DonotReset.InfillSegment);
 
-								//Console.WriteLine(" -->  " + line);
+								Logger.LogVerbose(" -->  " + line);
 
 								if (lines[insertedInfillSegment].Contains("segType:Infill") | lines[i - 1].Contains("segType:Infill"))
 								{
@@ -170,15 +230,15 @@ namespace Slic3rPostProcessing
 									lines[i + 1] = line.Replace(" ; infill", null);
 									insertedInfillSegment = i;
 								}
-								continue;
+								//continue;
 							}
 
 							if (line.EndsWith("; support material interface"))
 							{
 								// RESET counter
-								ResetAllOtherCounters("insertedSoftSupportSegment");
+								ResetAllCountersButThis(DonotReset.SoftSupportSegment);
 
-								//Console.WriteLine(" -->  " + line);
+								Logger.LogVerbose(" -->  " + line);
 
 								if (lines[insertedSoftSupportSegment].Contains("segType:SoftSupport") | lines[i - 1].Contains("segType:SoftSupport"))
 								{
@@ -190,15 +250,15 @@ namespace Slic3rPostProcessing
 									lines[i + 1] = line.Replace(" ; support material interface", null);
 									insertedSoftSupportSegment = i;
 								}
-								continue;
+								//continue;
 							}
 
 							if (line.EndsWith("; support material"))
 							{
 								// RESET counter
-								ResetAllOtherCounters("insertedSupportSegment");
+								ResetAllCountersButThis(DonotReset.SupportSegment);
 
-								//Console.WriteLine(" -->  " + line);
+								Logger.LogVerbose(" -->  " + line);
 
 								if (lines[insertedSupportSegment].Contains("segType:Support") | lines[i - 1].Contains("segType:Support"))
 								{
@@ -210,15 +270,15 @@ namespace Slic3rPostProcessing
 									lines[i + 1] = line.Replace(" ; support material", null);
 									insertedSupportSegment = i;
 								}
-								continue;
+								//continue;
 							}
 
 							if (line.EndsWith("; perimeter"))
 							{
 								// RESET counter
-								ResetAllOtherCounters("insertedPerimeterSegment");
+								ResetAllCountersButThis(DonotReset.PerimeterSegment);
 
-								//Console.WriteLine(" -->  " + line);
+								Logger.LogVerbose(" -->  " + line);
 
 								if (lines[insertedPerimeterSegment].Contains("segType:Perimeter") | lines[i - 1].Contains("segType:Perimeter"))
 								{
@@ -230,14 +290,22 @@ namespace Slic3rPostProcessing
 									lines[i + 1] = line.Replace(" ; perimeter", null);
 									insertedPerimeterSegment = i;
 								}
-								continue;
+								//continue;
 							}
 
 							// Remove leftover comments
-							if (line.Contains(" ;"))
+							if (line.Contains(";"))
 							{
 								lines[i] = line.Split(';')[0].TrimEnd();
 							}
+						}
+
+						if (i == repnewprog)
+						{
+							Double progress = (Double)i / (Double)cLines;
+
+							Logger.LogInfo("Progress: " + Math.Round(progress * 100d, 0) + "%");
+							repnewprog += repprogint;
 						}
 					}
 					catch (Exception ex)
@@ -251,56 +319,130 @@ namespace Slic3rPostProcessing
 				{
 					File.WriteAllLines(newfilename, lines);
 
-					if (args.Length > 1)
+					if (strOUTputFile != null & File.Exists(newfilename))
 					{
-						File.Delete(args[1]);
-						File.Move(newfilename, args[1]);
-					}
-					else
-					{
-						File.Delete(args[0]);
-						File.Move(newfilename, args[0]);
+						File.Delete(strOUTputFile);
+						File.Move(newfilename, strOUTputFile);
 					}
 
-					Console.WriteLine(Environment.NewLine + "All done - Thank you.");
+					if (strOUTputFile == null & File.Exists(newfilename))
+					{
+						File.Delete(strINputFile);
+						File.Move(newfilename, strINputFile);
+					}
+
+					Logger.LogInfo("All done - Thank you. Will close soone ... ");
+
+#if DEBUG
+					{
+						Console.WriteLine("Press any key to continue . . .");
+						Console.ReadKey();
+					}
+#else
+					System.Threading.Thread.Sleep(3000);
+#endif
+
 					Environment.Exit(0);
 					return 0;
 				}
 				catch (Exception ex)
 				{
-					Console.Write(ex.ToString());
+					Logger.LogError(ex.Message);
+					ShowHelp(p);
 					Environment.Exit(1);
 					return 1;
 				}
 			}
 		}
 
-		/// <summary>
-		/// Resets all other Properties to their respective default.
-		/// </summary>
-		/// <param name="PropertyNOTToReset">Name of Property. Do NOT reset this Property!</param>
-		public static void ResetAllOtherCounters(string PropertyNOTToReset = "empty")
+		private static void ShowHelp(OptionSet p)
 		{
-			if (PropertyNOTToReset != "insertedInfillSegment")
+			Console.WriteLine();
+			Console.WriteLine("This program is for use with Slic3r or standalone.");
+			Console.WriteLine("Slic3r - Print Settings");
+			Console.WriteLine("        -> Output options");
+			Console.WriteLine("        -> Enable Verbose G-Code (important!)");
+			Console.WriteLine("        -> Put full filename to exe and ` --i=` in Post-Processing Scripts.");
+			Console.WriteLine("        Example: c:\\temp\\Slic3rPostProcessing --i=");
+
+			Console.WriteLine();
+			Console.WriteLine("Standalone usage: Slic3rPostProcessing [OPTIONS]");
+			Console.WriteLine();
+			Console.WriteLine("Options:");
+			p.WriteOptionDescriptions(Console.Out);
+		}
+
+		/// <summary>
+		/// Resets all other Counters to their respective default.
+		/// </summary>
+		/// <param name="CounterNOT2Reset">Counter NOT to reset!</param>
+		public static void ResetAllCountersButThis(int CounterNOT2Reset)
+		{
+			if (CounterNOT2Reset == -1 || CounterNOT2Reset != DonotReset.InfillSegment)
 			{
 				insertedInfillSegment = 0;
 			}
-			if (PropertyNOTToReset != "insertedSupportSegment")
+			if (CounterNOT2Reset == -1 || CounterNOT2Reset != DonotReset.SupportSegment)
 			{
 				insertedSupportSegment = 0;
 			}
-			if (PropertyNOTToReset != "insertedPerimeterSegment")
+			if (CounterNOT2Reset == -1 || CounterNOT2Reset != DonotReset.PerimeterSegment)
 			{
 				insertedPerimeterSegment = 0;
 			}
-			if (PropertyNOTToReset != "insertedSoftSupportSegment")
+			if (CounterNOT2Reset == -1 || CounterNOT2Reset != DonotReset.SoftSupportSegment)
 			{
 				insertedSoftSupportSegment = 0;
 			}
-			if (PropertyNOTToReset != "insertedSkirtSegment")
+			if (CounterNOT2Reset == -1 || CounterNOT2Reset != DonotReset.SkirtSegment)
 			{
 				insertedSoftSupportSegment = 0;
 			}
 		}
+	}
+
+	public static class DonotReset
+	{
+		public const int AllReverseNone = -1;
+		public const int InfillSegment = 0;
+		public const int SupportSegment = 1;
+		public const int PerimeterSegment = 2;
+		public const int SoftSupportSegment = 3;
+		public const int SkirtSegment = 4;
+	}
+
+	internal class Logger
+	{
+		public static void LogInfo(string message)
+		{
+			Trace.WriteLineIf(Logger.traceSwitch.TraceInfo, "INFO : " + message);
+		}
+
+		public static void Log(string message)
+		{
+			Trace.WriteLine(DateTime.Now + " : " + message);
+		}
+
+		public static void LogError(string message)
+		{
+			Trace.WriteLineIf(Logger.traceSwitch.TraceError, "ERROR : " + message);
+		}
+
+		public static void LogWarning(string message)
+		{
+			Trace.WriteLineIf(Logger.traceSwitch.TraceWarning, "WARNING : " + message);
+		}
+
+		public static void LogError(Exception e)
+		{
+			Trace.WriteLineIf(Logger.traceSwitch.TraceError, "EXCEPTION : " + e);
+		}
+
+		public static void LogVerbose(string message)
+		{
+			Trace.WriteLineIf(Logger.traceSwitch.TraceVerbose, "VERBOSE : " + message);
+		}
+
+		public static TraceSwitch traceSwitch = new TraceSwitch("Application", "Application");
 	}
 }
