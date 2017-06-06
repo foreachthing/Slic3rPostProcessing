@@ -142,198 +142,189 @@ namespace Slic3rPostProcessing
 				int repprogint = cLines * repprogress / 100;
 				int repnewprog = repprogint;
 
-				for (int i = 0; i < cLines - 1; i++)
+				int q = 0;
+				string lprev = null;
+
+				StringBuilder sb = new StringBuilder();
+				foreach (string l in lines)
 				{
-					try
+					// Store previous line
+					if (q >= 1) { lprev = lines[q - 1]; }
+
+					if (l.Contains(";layer:0;"))  //("; END Header"))
 					{
-						line = lines[i];
-						Logger.LogVerbose((i + 1).ToString("N", nfi) + ": " + line);
-
-						if (i == repnewprog)
-						{
-							Double progress = (Double)i / (Double)cLines;
-
-							Logger.LogInfo("Progress: " + Math.Round(progress * 100d, 0) + "%");
-							repnewprog += repprogint;
-						}
-
-						if (line.Contains(";layer:0;"))
-						{
-							StartGCode = true;
-							continue;
-						}
-
-						if (line.Contains("; END Footer"))
-						{
-							EndGCode = true;
-							continue;
-						}
-
-						if (line.Contains("; # # # # # # Header"))
-						{
-							StartGCode = false;
-							continue;
-						}
-
-						if (line.Contains("; # # # # # # Footer"))
-						{
-							EndGCode = true;
-							continue;
-						}
-
-						if (StartGCode == true & EndGCode == false)
-						{
-							if (!StartPoint | !FirstLine)
-							{
-								if (FirstLayer == null)
-								{
-									Match match0 = Regex.Match(line, @"^([gG]1)\s([zZ](-?(0|[1-9]\d*)(\.\d+)?))\s([fF](-?(0|[1-9]\d*)(\.\d+)?))(.*)$", RegexOptions.IgnoreCase);
-
-									// Here we check the Match instance.
-									if (match0.Success)
-									{
-										FirstLayer = match0.Groups[2].Value;
-										Logger.LogVerbose("First Layer Height: " + FirstLayer + " mm");
-										lines.RemoveAt(i);
-										i -= 1;
-										FirstLine = true;
-										continue;
-									}
-								}
-
-								if (FirstLayer != null)
-								{
-									Match match1 = Regex.Match(line, @"^([gG]1)\s([xX]-?(0|[1-9]\d*)(\.\d+)?)\s([yY]-?(0|[1-9]\d*)(\.\d+)?)\s([fF]-?(0|[1-9]\d*)(\.\d+)?)\s((; move to first)\s(\w+).*(point))$", RegexOptions.IgnoreCase);
-									// Here we check the Match instance.
-									if (match1.Success)
-									{
-										lines[i] = line.Replace(match1.Groups[8].Value, FirstLayer + " " + match1.Groups[8].Value);
-										Logger.LogVerbose("Start Point: " + lines[i]);
-										StartPoint = true;
-										continue;
-									}
-								}
-							}
-
-							if (line.EndsWith("; skirt") | line.EndsWith(" ; brim"))
-							{
-								// RESET counter
-								ResetAllCountersButThis(DonotReset.SkirtSegment);
-
-								Logger.LogVerbose(" -->  " + line);
-
-								if (lines[insertedSkirtSegment].Contains("segType:Skirt") | lines[i - 1].Contains("segType:Skirt"))
-								{
-									lines[i] = TrimComment(line);
-								}
-								else
-								{
-									lines[i] = ";segType:Skirt" + Environment.NewLine + TrimComment(line);
-
-									insertedSkirtSegment = i;
-								}
-								continue;
-							}
-
-							if (line.EndsWith("; infill"))
-							{
-								// RESET counter
-								ResetAllCountersButThis(DonotReset.InfillSegment);
-
-								Logger.LogVerbose(" -->  " + line);
-
-								if (lines[insertedInfillSegment].Contains("segType:Infill") | lines[i - 1].Contains("segType:Infill"))
-								{
-									lines[i] = TrimComment(line);// line.Replace(" ; infill", null);
-								}
-								else
-								{
-									lines[i] = ";segType:Infill" + Environment.NewLine + TrimComment(line);
-									insertedInfillSegment = i;
-								}
-								continue;
-							}
-
-							if (line.EndsWith("; support material interface"))
-							{
-								// RESET counter
-								ResetAllCountersButThis(DonotReset.SoftSupportSegment);
-
-								Logger.LogVerbose(" -->  " + line);
-
-								if (lines[insertedSoftSupportSegment].Contains("segType:SoftSupport") | lines[i - 1].Contains("segType:SoftSupport"))
-								{
-									lines[i] = TrimComment(line);//line.Replace(" ; support material interface", null);
-								}
-								else
-								{
-									lines[i] = ";segType:SoftSupport" + Environment.NewLine + TrimComment(line);
-									insertedSoftSupportSegment = i;
-								}
-								continue;
-							}
-
-							if (line.EndsWith("; support material"))
-							{
-								// RESET counter
-								ResetAllCountersButThis(DonotReset.SupportSegment);
-
-								Logger.LogVerbose(" -->  " + line);
-
-								if (lines[insertedSupportSegment].Contains("segType:Support") | lines[i - 1].Contains("segType:Support"))
-								{
-									lines[i] = TrimComment(line);//line.Replace(" ; support material", null);
-								}
-								else
-								{
-									lines[i] = ";segType:Support" + Environment.NewLine + TrimComment(line);
-									insertedSupportSegment = i;
-								}
-								continue;
-							}
-
-							if (line.EndsWith("; perimeter"))
-							{
-								// RESET counter
-								ResetAllCountersButThis(DonotReset.PerimeterSegment);
-
-								Logger.LogVerbose(" -->  " + line);
-
-								if (lines[insertedPerimeterSegment].Contains("segType:Perimeter") | lines[i - 1].Contains("segType:Perimeter"))
-								{
-									lines[i] = TrimComment(line);//line.Replace(" ; perimeter", null);
-								}
-								else
-								{
-									lines[i] = ";segType:Perimeter" + Environment.NewLine + TrimComment(line);
-									insertedPerimeterSegment = i;
-								}
-								continue;
-							}
-
-							// Remove any leftover comments
-							lines[i] = TrimComment(line);
-						}
+						StartGCode = true;
+						sb.AppendLine(l);
+						continue;
 					}
-					catch (Exception ex)
+
+					if (l.Contains("; END Footer"))
 					{
-						Console.Write(ex.ToString());
-
-#if DEBUG
-						{
-							Logger.LogWarning(ex.ToString());
-							Console.WriteLine("Press any key to continue . . .");
-							Console.ReadKey();
-						}
-#endif
-
-						Environment.Exit(1);
-						return 1;
+						EndGCode = true;
+						sb.AppendLine(l);
+						continue;
 					}
+
+					if (l.Contains("; # # # # # # Header"))
+					{
+						StartGCode = false;
+						sb.AppendLine(l);
+						continue;
+					}
+
+					if (l.Contains("; # # # # # # Footer"))
+					{
+						EndGCode = true;
+						sb.AppendLine(l);
+						continue;
+					}
+
+					if (StartGCode == true & EndGCode == false)
+					{
+						if (!StartPoint | !FirstLine)
+						{
+							if (FirstLayer == null)
+							{
+								Match match0 = Regex.Match(l, @"^([gG]1)\s([zZ](-?(0|[1-9]\d*)(\.\d+)?))\s([fF](-?(0|[1-9]\d*)(\.\d+)?))(.*)$", RegexOptions.IgnoreCase);
+
+								// Here we check the Match instance.
+								if (match0.Success)
+								{
+									FirstLayer = match0.Groups[2].Value;
+									Logger.LogVerbose("First Layer Height: " + FirstLayer + " mm");
+									FirstLine = true;
+									continue;
+								}
+							}
+
+							if (FirstLayer != null)
+							{
+								Match match1 = Regex.Match(l, @"^([gG]1)\s([xX]-?(0|[1-9]\d*)(\.\d+)?)\s([yY]-?(0|[1-9]\d*)(\.\d+)?)\s([fF]-?(0|[1-9]\d*)(\.\d+)?)\s((; move to first)\s(\w+).*(point))$", RegexOptions.IgnoreCase);
+								// Here we check the Match instance.
+								if (match1.Success)
+								{
+									sb.AppendLine(l.Replace(match1.Groups[8].Value, FirstLayer + " " + match1.Groups[8].Value));
+									Logger.LogVerbose("Start Point: " + l);
+									StartPoint = true;
+									continue;
+								}
+							}
+						}
+
+						if (l.EndsWith("; skirt") | l.EndsWith(" ; brim"))
+						{
+							// RESET counter
+							ResetAllCountersButThis(DonotReset.SkirtSegment);
+
+							Logger.LogVerbose(" -->  " + l);
+
+							if (l.Contains("segType:Skirt") | insertedSkirtSegment != 0)
+							{
+								sb.AppendLine(TrimComment(l));
+							}
+							else
+							{
+								sb.AppendLine(";segType:Skirt");
+								sb.AppendLine(TrimComment(l));
+								insertedSkirtSegment = 1;
+							}
+							continue;
+						}
+
+						if (l.EndsWith("; infill"))
+						{
+							// RESET counter
+							ResetAllCountersButThis(DonotReset.InfillSegment);
+
+							Logger.LogVerbose(" -->  " + l);
+
+							if (l.Contains("segType:Infill") | insertedInfillSegment != 0)
+							{
+								sb.AppendLine(TrimComment(l));
+							}
+							else
+							{
+								sb.AppendLine(";segType:Infill");
+								sb.AppendLine(TrimComment(l));
+								insertedInfillSegment = 1;
+							}
+							continue;
+						}
+
+						if (l.EndsWith("; support material interface"))
+						{
+							// RESET counter
+							ResetAllCountersButThis(DonotReset.SoftSupportSegment);
+
+							Logger.LogVerbose(" -->  " + l);
+
+							if (l.Contains("segType:SoftSupport") | insertedSoftSupportSegment != 0)
+							{
+								sb.AppendLine(TrimComment(l));
+							}
+							else
+							{
+								sb.AppendLine(";segType:SoftSupport");
+								sb.AppendLine(TrimComment(l));
+								insertedSoftSupportSegment = 1;
+							}
+							continue;
+						}
+
+						if (l.EndsWith("; support material"))
+						{
+							// RESET counter
+							ResetAllCountersButThis(DonotReset.SupportSegment);
+
+							Logger.LogVerbose(" -->  " + l);
+
+							if (l.Contains("segType:Support") | insertedSupportSegment != 0)
+							{
+								sb.AppendLine(TrimComment(l));
+							}
+							else
+							{
+								sb.AppendLine(";segType:Support");
+								sb.AppendLine(TrimComment(l));
+								insertedSupportSegment = 1;
+							}
+							continue;
+						}
+
+						if (l.EndsWith("; perimeter"))
+						{
+							// RESET counter
+							ResetAllCountersButThis(DonotReset.PerimeterSegment);
+
+							Logger.LogVerbose(" -->  " + l);
+
+							if (l.Contains("segType:Perimeter") | insertedPerimeterSegment != 0)
+							{
+								sb.AppendLine(TrimComment(l));
+							}
+							else
+							{
+								sb.AppendLine(";segType:Perimeter");
+								sb.AppendLine(TrimComment(l));
+								insertedPerimeterSegment = 1;
+							}
+							continue;
+						}
+
+						// Remove any leftover comments
+						sb.AppendLine(TrimComment(l));
+					}
+					else
+					{
+						sb.AppendLine(l);
+					}
+
+					q++;
 				}
+
 				try
 				{
-					File.WriteAllLines(newfilename, lines);
+					System.IO.File.WriteAllText(newfilename, sb.ToString());
 
 					if (strOUTputFile != null & File.Exists(newfilename))
 					{
