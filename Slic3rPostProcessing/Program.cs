@@ -87,10 +87,6 @@ namespace Slic3rPostProcessing
 				return 1;
 			}
 
-			//Logger.LogInfo(strINputFile);
-			//Console.WriteLine("Press any key to continue . . .");
-			//Console.ReadKey();
-
 			if (strINputFile == null)
 			{
 				// Console.WriteLine("I need an arguement; your's not good!");
@@ -138,18 +134,24 @@ namespace Slic3rPostProcessing
 				bool StartPoint = false;
 				bool FirstLine = false;
 				string FirstLayer = null;
-				string line = null;
 				int repprogint = cLines * repprogress / 100;
 				int repnewprog = repprogint;
 
-				int q = 0;
-				string lprev = null;
+				int q = -1;
 
 				StringBuilder sb = new StringBuilder();
 				foreach (string l in lines)
 				{
-					// Store previous line
-					if (q >= 1) { lprev = lines[q - 1]; }
+					Logger.LogVerbose((q + 1).ToString("N", nfi) + ": " + l);
+
+					q++;
+
+					if (q == repnewprog)
+					{
+						Double progress = (Double)q / (Double)cLines;
+						Logger.LogInfo("Progress: " + Math.Round(progress * 100d, 0) + "%");
+						repnewprog += repprogint;
+					}
 
 					if (l.Contains(";layer:0;"))  //("; END Header"))
 					{
@@ -318,8 +320,6 @@ namespace Slic3rPostProcessing
 					{
 						sb.AppendLine(l);
 					}
-
-					q++;
 				}
 
 				try
