@@ -12,11 +12,11 @@ namespace Slic3rPostProcessing
 {
 	internal class Program
 	{
-		public static int insertedSkirtSegment { get; set; }
-		public static int insertedInfillSegment { get; set; }
-		public static int insertedSupportSegment { get; set; }
-		public static int insertedSoftSupportSegment { get; set; }
-		public static int insertedPerimeterSegment { get; set; }
+		public static short insertedSkirtSegment { get; set; }
+		public static short insertedInfillSegment { get; set; }
+		public static short insertedSupportSegment { get; set; }
+		public static short insertedSoftSupportSegment { get; set; }
+		public static short insertedPerimeterSegment { get; set; }
 
 		/// <summary>
 		/// Post processing for Slic3r to color the toolpaths to view in Craftware
@@ -29,7 +29,7 @@ namespace Slic3rPostProcessing
 		private static int Main(string[] args)
 		{
 			bool show_help = false;
-			bool debugger = false;
+
 			int verbosity = 3;
 			int repprogress = 5;
 			string strINputFile = null;
@@ -42,12 +42,10 @@ namespace Slic3rPostProcessing
 					v => strOUTputFile=v },
 				{ "h|help",  "Show this message and exit. Nothing will be done.",
 					v => show_help = v != null },
-				{ "d|debug",  "Show debug info if set to true. Default: false.",
-					v => debugger = v != null },
-				{ "v|verbosity=", "Debug message verbosity (0 to 4). Default: 3 (Info). 0 = Off; 1 = Error; 2 = Warning; 3 = Info; 4 = Verbose (will output EVER line of GCode! There will be LOTS of output!)",
+				{ "v|verbosity=", "Debug message verbosity. Default: 3. \n 0 = Off \n 1 = Error \n 2 = Warning \n 3 = Info \n 4 = Verbose (will output EVER line of GCode! There will be LOTS of output!)",
 					(int v) => { if ( v >= 0 & v <5) verbosity = v; } },
-				{ "p|progress=", "Report progress ever {PROGRESS} percentage. Default 5.",
-					(int v) => { if ( v >= 0 & v <=100) repprogress = v; } },
+				{ "p|progress=", "Report progress ever {PROGRESS} percentage (integer). Default 5.",
+					(int iprog) => repprogress=(iprog >= 1 & iprog<=100 ? iprog : repprogress ) }   ,
 			};
 
 			List<string> extra;
@@ -338,7 +336,7 @@ namespace Slic3rPostProcessing
 						File.Move(newfilename, strINputFile);
 					}
 
-					Logger.LogInfo("All done - Thank you. Will close soone ... ");
+					Logger.LogInfo("All done - Thank you. Will close now ... ");
 
 #if DEBUG
 					{
@@ -346,7 +344,7 @@ namespace Slic3rPostProcessing
 						Console.ReadKey();
 					}
 #else
-					System.Threading.Thread.Sleep(3000);
+					System.Threading.Thread.Sleep(500);
 #endif
 
 					Environment.Exit(0);
