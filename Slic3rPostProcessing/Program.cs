@@ -38,7 +38,8 @@ namespace Slic3rPostProcessing
 			string strOUTputFile = null;
 
 			bool booTimestamp = false;
-			bool boofTimestamp = true;
+			bool booCounter = true;
+			bool booResetCounter = false;
 
 			var p = new OptionSet() {
 				{ "i|input=", "The {INPUTFILE} to process.",
@@ -53,8 +54,8 @@ namespace Slic3rPostProcessing
 				{ "t|timestamp=","Adds a timestamp to the END of the filename.\n {+ or -}; Default = -",
 					t => booTimestamp = t != null },
 
-				{ "p|pretimestamp=","Adds a timestamp to the FRONT of the filename.\n {+ or -}; Default = + \n If both timestamps are set to true, then it will only be added to the front.",
-					t => boofTimestamp = t != null },
+				{ "c|counter=","Adds an export-counter to the FRONT of the filename.\n {+ or -}; Default = + \n If the timestamps is set to true, too, then only the counter will be added.",
+					t => booCounter = t != null },
 
 				{ "f|formatstamp=","{FORMAT} of the timestamp. \n Default: " + strTimeformat,
 					tf => strTimeformat = tf },
@@ -64,6 +65,9 @@ namespace Slic3rPostProcessing
 
 				{ "h|help",  "Show this message and exit. Nothing will be done.",
 					v => show_help = v != null },
+
+				{ "resetcounter=","Reset export-counter and exit.",
+					t => booResetCounter = t != null },
 			};
 
 			List<string> extra;
@@ -99,6 +103,14 @@ namespace Slic3rPostProcessing
 			if (show_help)
 			{
 				ShowHelp(p);
+				Environment.Exit(1);
+				return 1;
+			}
+
+			if (booResetCounter)
+			{
+				Properties.Settings.Default.export_counter = 0;
+				Properties.Settings.Default.Save();
 				Environment.Exit(1);
 				return 1;
 			}
@@ -342,7 +354,7 @@ namespace Slic3rPostProcessing
 				{
 					System.IO.File.WriteAllText(newfilename, sb.ToString());
 
-					if (boofTimestamp & booTimestamp)
+					if (booCounter & booTimestamp)
 					{
 						booTimestamp = false;
 					}
@@ -354,9 +366,9 @@ namespace Slic3rPostProcessing
 						{
 							File.Move(newfilename, strOUTputFile.AppendTimeStamp());
 						}
-						else if (boofTimestamp)
+						else if (booCounter)
 						{
-							File.Move(newfilename, strOUTputFile.PrependTimeStamp());
+							File.Move(newfilename, strOUTputFile.PrependCounter());
 						}
 						else
 						{
@@ -371,9 +383,9 @@ namespace Slic3rPostProcessing
 						{
 							File.Move(newfilename, strINputFile.AppendTimeStamp());
 						}
-						else if (boofTimestamp)
+						else if (booCounter)
 						{
-							File.Move(newfilename, strINputFile.PrependTimeStamp());
+							File.Move(newfilename, strINputFile.PrependCounter());
 						}
 						else
 						{
@@ -482,10 +494,15 @@ namespace Slic3rPostProcessing
 				+ Path.GetExtension(fileName));
 		}
 
-		public static string PrependTimeStamp(this string fileName)
+		public static string PrependCounter(this string fileName)
 		{
+			int counter = Properties.Settings.Default.export_counter;
+
+			Properties.Settings.Default.export_counter++;
+			Properties.Settings.Default.Save();
+
 			return Path.Combine(Path.GetDirectoryName(fileName),
-				DateTime.Now.ToString(Program.strTimeformat)
+				counter.ToString("D6")
 				+ "_"
 				+ Path.GetFileNameWithoutExtension(fileName)
 				+ Path.GetExtension(fileName));
