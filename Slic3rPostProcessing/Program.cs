@@ -66,7 +66,7 @@ namespace Slic3rPostProcessing
 				{ "h|help",  "Show this message and exit. Nothing will be done.",
 					v => show_help = v != null },
 
-				{ "resetcounter=","Reset export-counter and exit.",
+				{ "resetcounter=","Reset export-counter to zero and exit.",
 					t => booResetCounter = t != null },
 			};
 
@@ -168,6 +168,18 @@ namespace Slic3rPostProcessing
 				int q = -1;
 
 				StringBuilder sb = new StringBuilder();
+
+				// Count all Layers
+				int iLayerCount = 0;
+				foreach (string l in lines)
+				{
+					if (l.Contains(";layer:") && (!l.Contains("before_layer_gcode")))  //("; END Header"))
+					{
+						iLayerCount++;
+					}
+				}
+
+				int iLayer = 0;
 				foreach (string l in lines)
 				{
 					Logger.LogVerbose((q + 1).ToString("N", nfi) + ": " + l);
@@ -239,6 +251,13 @@ namespace Slic3rPostProcessing
 									continue;
 								}
 							}
+						}
+
+						if (l.StartsWith("M117"))
+						{
+							iLayer++;
+							sb.AppendLine("M117 Layer " + iLayer + "/" + iLayerCount);
+							continue;
 						}
 
 						if (l.EndsWith("; skirt") | l.EndsWith(" ; brim"))
@@ -419,9 +438,11 @@ namespace Slic3rPostProcessing
 
 		private static string TrimComment(string line)
 		{
+			char[] TrimChars = new char[] { ' ' };
+
 			if (line.Contains(";"))
 			{
-				line = line.Split(';')[0].TrimEnd();
+				line = line.Split(';')[0].TrimEnd(TrimChars);
 			}
 
 			return line;
