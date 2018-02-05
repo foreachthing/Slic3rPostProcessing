@@ -34,5 +34,17 @@ namespace Slic3rPostProcessing.Properties {
                 this["export_counter"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool _UpdateRequired {
+            get {
+                return ((bool)(this["_UpdateRequired"]));
+            }
+            set {
+                this["_UpdateRequired"] = value;
+            }
+        }
     }
 }

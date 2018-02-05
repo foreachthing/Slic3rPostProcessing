@@ -30,6 +30,13 @@ namespace Slic3rPostProcessing
 		/// End G-Code: `; END Footer`.</remarks>
 		private static int Main(string[] args)
 		{
+			if (Properties.Settings.Default._UpdateRequired == true)
+			{
+				Properties.Settings.Default.Upgrade();
+				Properties.Settings.Default._UpdateRequired = false;
+				Properties.Settings.Default.Save();
+			}
+
 			bool show_help = false;
 
 			int verbosity = 3;
