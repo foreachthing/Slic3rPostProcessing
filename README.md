@@ -14,7 +14,7 @@ This tool basically looks for `; skirt` and collects this block _(skirts, perime
   * Start G-Code: `; END Header`
   * End G-Code: `; END Footer`
   
-![Print Settings](https://github.com/foreachthing/Slic3rPostProcessing/blob/master/slic3r_print_settings.png)
+![Print Settings](https://github.com/foreachthing/Slic3rPostProcessing/misc/slic3r_print_settings.png)
 
 
 ## Standalone:
@@ -27,6 +27,6 @@ The `mynewfile.gcode` can now be viewed in CraftWare - in color!
 
 ## GCode reviewd in CraftWare:
 * before:
-![before](https://github.com/foreachthing/Slic3rPostProcessing/blob/master/slicer_before.png)
+![before](https://github.com/foreachthing/Slic3rPostProcessing/misc/slicer_before.png)
 * after:
-![after](https://github.com/foreachthing/Slic3rPostProcessing/blob/master/slicer_after.png)
+![after](https://github.com/foreachthing/Slic3rPostProcessing/misc/slicer_after.png)
