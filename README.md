@@ -18,6 +18,7 @@ This tool basically looks for `; skirt` and collects this block _(skirts, perime
 * In Slic3r -> Printer -> Custom G-Code; add this:
   * Start G-Code: `; END Header`
   * End G-Code: `; END Footer`
+  * Before layer change G-Code: `;layer:[layer_num]; \n M117 Layer [layer_num];`
   
 ![Print Settings](https://github.com/foreachthing/Slic3rPostProcessing/blob/master/misc/slic3r_print_settings.png)
 
