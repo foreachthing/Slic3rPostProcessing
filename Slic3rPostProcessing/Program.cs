@@ -146,7 +146,7 @@ namespace Slic3rPostProcessing
 					}
 					wait++;
 
-					if (wait > 20 * 6)
+					if (wait > 20 * 3 * 5)
 					{
 						Logger.LogInfo("I assume there is no " + strINputFile + " and abort. Please retry, if you like, after the file actually exists.");
 					}
