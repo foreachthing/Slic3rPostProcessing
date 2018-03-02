@@ -390,15 +390,20 @@ namespace Slic3rPostProcessing
 						File.Delete(strOUTputFile);
 						if (booTimestamp)
 						{
-							File.Move(newfilename, strOUTputFile.AppendTimeStamp());
+							string newfile = strOUTputFile.AppendTimeStamp();
+							File.Move(newfilename, newfile);
+							Logger.LogInfo("File written: " + newfile);
 						}
 						else if (booCounter)
 						{
+							string newfile = strOUTputFile.PrependCounter();
 							File.Move(newfilename, strOUTputFile.PrependCounter());
+							Logger.LogInfo("File written: " + newfile);
 						}
 						else
 						{
 							File.Move(newfilename, strOUTputFile);
+							Logger.LogInfo("File written: " + strOUTputFile);
 						}
 					}
 
@@ -407,15 +412,20 @@ namespace Slic3rPostProcessing
 						File.Delete(strINputFile);
 						if (booTimestamp)
 						{
-							File.Move(newfilename, strINputFile.AppendTimeStamp());
+							string newfile = strINputFile.AppendTimeStamp();
+							File.Move(newfilename, newfile);
+							Logger.LogInfo("File written: " + newfile);
 						}
 						else if (booCounter)
 						{
-							File.Move(newfilename, strINputFile.PrependCounter());
+							string newfile = strINputFile.PrependCounter();
+							File.Move(newfilename, newfile);
+							Logger.LogInfo("File written: " + newfile);
 						}
 						else
 						{
 							File.Move(newfilename, strINputFile);
+							Logger.LogInfo("File written: " + strINputFile);
 						}
 					}
 
