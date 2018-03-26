@@ -5,7 +5,8 @@ Post processing for [Slic3r](http://slic3r.org) to color the toolpaths to view i
 This tool basically looks for `; skirt` and collects this block _(skirts, perimeter, softsupport and support are supported)_ and writes `;segType:Skirt` before. Then, it removes the verbose output to reduce the file size.
 
 * Adds a number prefix to the filename (no more overwriting gcode).
-* Changes the start code to be more like cura.
+* Changes the start code to be more like Cura.
+* Added ability to stop Bed Heater at Height x mm. See help for usage.
 * and some more ...
 
 
