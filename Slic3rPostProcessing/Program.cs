@@ -40,7 +40,7 @@ namespace Slic3rPostProcessing
             bool show_help = false;
 
             int verbosity = 3;
-            double repprogress = 5d;
+            double repprogress = 10d;
             double stopbeadheater = 0d;
             string strINputFile = null;
             string strOUTputFile = null;
@@ -52,24 +52,24 @@ namespace Slic3rPostProcessing
             var p = new OptionSet() {
                 { "i|input=", "The {INPUTFILE} to process.",
                     v => strINputFile=v },
-                { "o|output=", "The {OUTPUTFILE} filename. \n Optional. {INPUTFILE} will get overwritten if {OUTPUTFILE} is not specified.",
+                { "o|output=", "The {OUTPUTFILE} filename. " + System.Environment.NewLine + " Optional. {INPUTFILE} will get overwritten if {OUTPUTFILE} is not specified.",
                     v => strOUTputFile=v },
 
-                { "c|counter=","Adds an export-counter to the FRONT of the filename.\n {+ or -}; Default = + \n If the timestamps is set to true, too, then only the counter will be added.",
+                { "c|counter=","Adds an export-counter to the FRONT of the filename." + System.Environment.NewLine + " {+ or -}; Default = + " + System.Environment.NewLine + " If the timestamps is set to true, too, then only the counter will be added.",
                     t => booCounter = t != null },
-                { "f|formatstamp=","{FORMAT} of the timestamp. \n Default: " + strTimeformat,
+                { "f|formatstamp=","{FORMAT} of the timestamp. " + System.Environment.NewLine + " Default: " + strTimeformat,
                     tf => strTimeformat = tf },
 
                 { "r|repprog=", "Report progress ever {PROG} percentage. Default "+ repprogress +".",
                     (double iprog) => repprogress=(iprog >= 1 & iprog<=100 ? iprog : repprogress ) },
 
-                { "s|stopbedheater=","Stopps heating of the bed after this height in millimeter; Default = 0 = off",
+                { "s|stopbedheater=","Stops heating of the bed after this height in millimeter; Default = 0 = off",
                     (double s) => { if ( s >= 0 ) stopbeadheater = s; } },
 
-                { "t|timestamp=","Adds a timestamp to the END of the filename.\n {+ or -}; Default = -",
+                { "t|timestamp=","Adds a timestamp to the END of the filename." + System.Environment.NewLine + " {+ or -}; Default = -",
                     t => booTimestamp = t != null },
 
-                { "v|verbosity=", "Debug message verbosity. Default: "+ verbosity +". \n {INT}:\n 0 = Off \n 1 = Error \n 2 = Warning \n 3 = Info \n 4 = Verbose (will output EVER line of GCode! There will be LOTS of output!)",
+                { "v|verbosity=", "Debug message verbosity. Default: "+ verbosity +". " + System.Environment.NewLine + " {INT}:" + System.Environment.NewLine + " 0 = Off " + System.Environment.NewLine + " 1 = Error " + System.Environment.NewLine + " 2 = Warning " + System.Environment.NewLine + " 3 = Info " + System.Environment.NewLine + " 4 = Verbose (will output EVER line of GCode! There will be LOTS of output!)",
                     (int v) => { if ( v >= 0 & v <5) verbosity = v; } },
 
                 { "resetcounter=","Reset export-counter to zero and exit.",
@@ -133,13 +133,16 @@ namespace Slic3rPostProcessing
             else
             {
                 int wait = 0;
+                int triesbeforeexit = 6;
                 do
                 {
                     // wait here until the file exists.
                     // It can take some time to copy the .tmp to .gcode.
                     if (wait > 20)
                     {
-                        System.Threading.Thread.Sleep(new TimeSpan(0, 0, 1));
+                        Logger.LogInfo("Waiting for input file (" + strINputFile + ") ... does it exist? (" + triesbeforeexit * 5 + " seconds to abort)");
+                        triesbeforeexit -= 1;
+                        System.Threading.Thread.Sleep(new TimeSpan(0, 0, 5));
                     }
                     else
                     {
@@ -147,9 +150,11 @@ namespace Slic3rPostProcessing
                     }
                     wait++;
 
-                    if (wait > 20 * 3 * 5)
+                    if (triesbeforeexit == 0)
                     {
                         Logger.LogInfo("I assume there is no " + strINputFile + " and abort. Please retry, if you like, after the file actually exists.");
+                        Environment.Exit(1);
+                        return 1;
                     }
                 } while (!File.Exists(strINputFile));
 
@@ -244,6 +249,7 @@ namespace Slic3rPostProcessing
                             {
                                 sb.AppendLine("M140 S0; Stop Bed Heater on Layer Height " + currentlayerheight + " mm");
                                 bedheaterstopped = true;
+                                stopbeadheater = currentlayerheight;
                                 sb.AppendLine(l);
                                 continue;
                             }
@@ -404,6 +410,13 @@ namespace Slic3rPostProcessing
                         booTimestamp = false;
                     }
 
+                    if (booCounter)
+                    {
+                        Properties.Settings.Default.export_counter++;
+                        Properties.Settings.Default.Save();
+                    }
+                    Logger.LogInfo("  Summary:");
+
                     if (strOUTputFile != null & File.Exists(newfilename))
                     {
                         File.Delete(strOUTputFile);
@@ -426,7 +439,7 @@ namespace Slic3rPostProcessing
                         }
                     }
 
-                    if (strINputFile == null & File.Exists(newfilename))
+                    if (strOUTputFile == null & File.Exists(newfilename))
                     {
                         File.Delete(strINputFile);
                         if (booTimestamp)
@@ -448,6 +461,7 @@ namespace Slic3rPostProcessing
                         }
                     }
 
+                    if (stopbeadheater > 0) { Logger.LogInfo("Bed Heater disabled after height " + stopbeadheater + " mm."); }
                     Logger.LogInfo("All done - Thank you. Will close now ... ");
 
 #if DEBUG
@@ -554,9 +568,6 @@ namespace Slic3rPostProcessing
         public static string PrependCounter(this string fileName)
         {
             int counter = Properties.Settings.Default.export_counter;
-
-            Properties.Settings.Default.export_counter++;
-            Properties.Settings.Default.Save();
 
             return Path.Combine(Path.GetDirectoryName(fileName),
                 counter.ToString("D6")
