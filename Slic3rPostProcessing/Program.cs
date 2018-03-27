@@ -18,6 +18,8 @@ namespace Slic3rPostProcessing
         public static short insertedSoftSupportSegment { get; set; }
         public static short insertedPerimeterSegment { get; set; }
 
+        public static int ConsoleWidth { get; set; }
+
         public static string strTimeformat = "HHmmss-yyyyMMdd";
 
         /// <summary>
@@ -93,8 +95,8 @@ namespace Slic3rPostProcessing
             ////// / / / / / / / / / / / / /
             // Log writer START
             Trace.AutoFlush = true;
-            int consolewidth = 120;
-            Logger.SetConsoleSize(consolewidth, 30);
+            ConsoleWidth = Logger.GetConsoleWidth();
+
             Logger.traceSwitch.Level = (TraceLevel)verbosity;//TraceLevel.Info;
             Trace.Listeners.Clear();
 
@@ -445,7 +447,6 @@ namespace Slic3rPostProcessing
 #else
                     System.Threading.Thread.Sleep(500);
 #endif
-
                     Environment.Exit(0);
                     return 0;
                 }
@@ -456,14 +457,10 @@ namespace Slic3rPostProcessing
                     Environment.Exit(1);
                     return 1;
                 }
-                finally
-                {
-                    Logger.ResetConsoleSize();
-                }
             }
         }
 
-        public static void WaitForFile(string filename)
+        private static void WaitForFile(string filename)
         {
             int wait = 0;
             int waitfor = 10;
@@ -506,6 +503,7 @@ namespace Slic3rPostProcessing
 
         private static void Progressbar(double Progress, bool ReportAsPercentage = true, int Value = -1)
         {
+            int conswidth = ConsoleWidth - 20;
             char pad = '\u2588'; //  '█';
             char spad = '\u2591'; // '░';
             string prog = "";
@@ -529,12 +527,14 @@ namespace Slic3rPostProcessing
                 progformat = String.Format("{0} ", newprog).PadRight(5);
             }
 
-            int progr = (int)Math.Round(Progress, 0);
+            double doh = Progress / 100 * conswidth;
+
+            int progr = (int)Math.Round(doh, 0);
 
             string mynewfunkyprogressbar = "       " +
                 progformat +
                 prog.PadLeft(progr, pad) +
-                prog.PadLeft(100 - progr, spad);
+                prog.PadLeft(conswidth - progr, spad);
 
             Logger.LogInfoOverwrite(mynewfunkyprogressbar);
         }
@@ -640,24 +640,12 @@ namespace Slic3rPostProcessing
     {
         private static int origWidth { get; set; }
         private static int origHeight { get; set; }
+        private static int origBWidth { get; set; }
+        private static int origBHeight { get; set; }
 
-        public static void SetConsoleSize(int width, int height)
+        public static int GetConsoleWidth()
         {
-            //
-            // Step 1: Get the current window dimensions.
-            //
-            origWidth = Console.WindowWidth;
-            origHeight = Console.WindowHeight;
-
-            //
-            // Step 2: Cut the window to 1/4 its original size.
-            //
-            Console.SetWindowSize(width, height);
-        }
-
-        public static void ResetConsoleSize()
-        {
-            Console.SetWindowSize(origWidth, origHeight);
+            return Console.WindowWidth;
         }
 
         public static void LogInfo(string message)
