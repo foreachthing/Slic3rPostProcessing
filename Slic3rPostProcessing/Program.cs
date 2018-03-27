@@ -125,33 +125,7 @@ namespace Slic3rPostProcessing
             }
             else
             {
-                int wait = 0;
-                int waitfor = 10;
-                int timebeforeabort = 30; // seconds
-                do
-                {
-                    // wait here until the file exists.
-                    // It can take some time to copy the .tmp to .gcode.
-                    if (wait > waitfor)
-                    {
-                        if (wait == waitfor + 1) Logger.LogInfo("Waiting for input file (" + Path.GetFileName(strINputFile) + ") at " + Environment.NewLine + "       " + Path.GetDirectoryName(strINputFile).ToLower());
-                        Logger.LogInfoOverwrite("       (" + timebeforeabort + " seconds to abort)    ");
-                        timebeforeabort -= 1;
-                        System.Threading.Thread.Sleep(new TimeSpan(0, 0, 1));
-                    }
-                    else
-                    {
-                        System.Threading.Thread.Sleep(50);
-                    }
-                    wait++;
-
-                    if (timebeforeabort == 0)
-                    {
-                        Logger.LogInfo("I assume there is no " + strINputFile + " and abort. Please retry, if you like, after the file actually exists.");
-                        Environment.Exit(1);
-                        return 1;
-                    }
-                } while (!File.Exists(strINputFile));
+                WaitForFile(strINputFile);
 
                 var lines = File.ReadAllLines(strINputFile).ToList();
 
@@ -188,32 +162,21 @@ namespace Slic3rPostProcessing
                 }
 
                 int iLayer = 0;
-
+                Console.WriteLine("");
                 foreach (string l in lines)
                 {
                     Logger.LogVerbose((q + 1).ToString("N", nfi) + ": " + l);
 
                     q++;
 
-                    Double progress = (double)q / lines.Count;
-
                     // Report progress every percent
                     if (q % (lines.Count / 100) == 0)
                     {
-                        char pad = '\u258C'; // '▌';
-                        char spad = ' ';
-                        string prog = "";
-
-                        int progr = (int)Math.Round(progress * 100d, 0);
-                        Logger.LogInfoOverwrite("       " +
-                            String.Format("{0:P0} ", progress).PadRight(5) +
-                            prog.PadLeft(progr, pad) +
-                            prog.PadLeft(100 - progr, spad) +
-                            pad.ToString());
-                        if (progr == 100)
-                        {
-                            Console.WriteLine("");
-                        }
+                        Progressbar((double)q * 100 / lines.Count);
+                    }
+                    if (q + 1 == lines.Count)
+                    {
+                        Console.WriteLine(""); Console.WriteLine("");
                     }
 
                     if (l.Contains(";layer:0;"))  //("; END Header"))
@@ -423,20 +386,10 @@ namespace Slic3rPostProcessing
                         Properties.Settings.Default.export_counter++;
                         Properties.Settings.Default.Save();
                     }
-                    Logger.LogInfo("--- All Done ---");
+                    string ts = ((char)('\u25a0')).ToString();
+                    ts = ts.PadRight(5, '\u25a0');
+                    Logger.LogInfo(ts + " All Done " + ts);
 
-                    //
-                    //
-                    //
-                    //
-                    //
-                    //    BETTER OUTPUT!
-                    // sep path from filename
-
-                    //  Path.GetFileName(strINputFile)
-                    //  Path.GetDirectoryName(strINputFile).ToLower()
-                    //
-                    //
                     Logger.LogInfo("Output :");
                     if (strOUTputFile != null & File.Exists(newfilename))
                     {
@@ -508,6 +461,82 @@ namespace Slic3rPostProcessing
                     Logger.ResetConsoleSize();
                 }
             }
+        }
+
+        public static void WaitForFile(string filename)
+        {
+            int wait = 0;
+            int waitfor = 10;
+            int timebeforeabort = 30;
+            int dt = 0;
+            do
+            {
+                // wait here until the file exists.
+                // It can take some time to copy/rename the .tmp to .gcode.
+                // QUIT after timebeforeabort has expired.
+                if (wait > waitfor)
+                {
+                    if (wait == waitfor + 1)
+                    {
+                        Console.WriteLine("");
+                        Logger.LogInfo("Waiting for input file (" + Path.GetFileName(filename) + ") at " + Environment.NewLine + "       " + Path.GetDirectoryName(filename));
+                    }
+
+                    int prog = 100 - (dt * 100 / timebeforeabort);
+                    Progressbar(prog, false, timebeforeabort - dt);
+                    if (timebeforeabort - dt == 0) Console.WriteLine("");
+
+                    dt += 1;
+                    System.Threading.Thread.Sleep(new TimeSpan(0, 0, 1));
+                }
+                else
+                {
+                    System.Threading.Thread.Sleep(50);
+                }
+                wait++;
+
+                if (timebeforeabort - dt == 0)
+                {
+                    Logger.LogInfo("I assume there is no " + filename + " and abort. Please retry, if you like, after the file actually exists.");
+                    Environment.Exit(1);
+                    //return 1;
+                }
+            } while (!File.Exists(filename));
+        }
+
+        private static void Progressbar(double Progress, bool ReportAsPercentage = true, int Value = -1)
+        {
+            char pad = '\u2588'; //  '█';
+            char spad = '\u2591'; // '░';
+            string prog = "";
+            string progformat = "";
+            double newprog;
+            if (Value != -1)
+            {
+                newprog = Value;
+            }
+            else
+            {
+                newprog = Progress / 100;
+            }
+
+            if (ReportAsPercentage)
+            {
+                progformat = String.Format("{0:P0} ", newprog).PadRight(5);
+            }
+            else
+            {
+                progformat = String.Format("{0} ", newprog).PadRight(5);
+            }
+
+            int progr = (int)Math.Round(Progress, 0);
+
+            string mynewfunkyprogressbar = "       " +
+                progformat +
+                prog.PadLeft(progr, pad) +
+                prog.PadLeft(100 - progr, spad);
+
+            Logger.LogInfoOverwrite(mynewfunkyprogressbar);
         }
 
         private static void PrintFileSummary(string filename)
