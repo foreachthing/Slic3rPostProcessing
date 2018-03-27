@@ -40,7 +40,6 @@ namespace Slic3rPostProcessing
             bool show_help = false;
 
             int verbosity = 3;
-            double repprogress = 10d;
             double stopbeadheater = 0d;
             string strINputFile = null;
             string strOUTputFile = null;
@@ -52,29 +51,21 @@ namespace Slic3rPostProcessing
             var p = new OptionSet() {
                 { "i|input=", "The {INPUTFILE} to process.",
                     v => strINputFile=v },
-                { "o|output=", "The {OUTPUTFILE} filename. " + System.Environment.NewLine + " Optional. {INPUTFILE} will get overwritten if {OUTPUTFILE} is not specified.",
+                { "o|output=", "The {OUTPUTFILE} filename. " + Environment.NewLine + " Optional. {INPUTFILE} will get overwritten if {OUTPUTFILE} is not specified.",
                     v => strOUTputFile=v },
-
-                { "c|counter=","Adds an export-counter to the FRONT of the filename." + System.Environment.NewLine + " {+ or -}; Default = + " + System.Environment.NewLine + " If the timestamps is set to true, too, then only the counter will be added.",
+                { "c|counter=","Adds an export-counter to the FRONT of the filename." + Environment.NewLine + " {+ or -}; Default = + " + Environment.NewLine + " If the timestamps is set to true, too, then only the counter will be added.",
                     t => booCounter = t != null },
-                { "f|formatstamp=","{FORMAT} of the timestamp. " + System.Environment.NewLine + " Default: " + strTimeformat,
+                { "f|formatstamp=","{FORMAT} of the timestamp. " + Environment.NewLine + " Default: " + strTimeformat,
                     tf => strTimeformat = tf },
-
-                { "r|repprog=", "Report progress ever {PROG} percentage. Default "+ repprogress +".",
-                    (double iprog) => repprogress=(iprog >= 1 & iprog<=100 ? iprog : repprogress ) },
-
                 { "s|stopbedheater=","Stops heating of the bed after this height in millimeter; Default = 0 = off",
                     (double s) => { if ( s >= 0 ) stopbeadheater = s; } },
-
-                { "t|timestamp=","Adds a timestamp to the END of the filename." + System.Environment.NewLine + " {+ or -}; Default = -",
+                { "t|timestamp=","Adds a timestamp to the END of the filename." + Environment.NewLine + " {+ or -}; Default = -",
                     t => booTimestamp = t != null },
-
-                { "v|verbosity=", "Debug message verbosity. Default: "+ verbosity +". " + System.Environment.NewLine + " {INT}:" + System.Environment.NewLine + " 0 = Off " + System.Environment.NewLine + " 1 = Error " + System.Environment.NewLine + " 2 = Warning " + System.Environment.NewLine + " 3 = Info " + System.Environment.NewLine + " 4 = Verbose (will output EVER line of GCode! There will be LOTS of output!)",
+                { "v|verbosity=", "Debug message verbosity. Default: "+ verbosity +". " + Environment.NewLine + " {INT}:" + Environment.NewLine + " 0 = Off " + Environment.NewLine + " 1 = Error " + Environment.NewLine + " 2 = Warning " + Environment.NewLine + " 3 = Info " + Environment.NewLine + " 4 = Verbose (will output EVERY line of GCode! There will be LOTS of output!)",
                     (int v) => { if ( v >= 0 & v <5) verbosity = v; } },
-
-                { "resetcounter=","Reset export-counter to zero and exit.",
+                { "resetcounter=","Reset export-counter to zero and exit (3).",
                     t => booResetCounter = t != null },
-                { "h|help",  "Show this message and exit. Nothing will be done.",
+                { "h|help",  "Show this message and exit (2). Nothing will be done.",
                     v => show_help = v != null },
             };
 
@@ -102,6 +93,8 @@ namespace Slic3rPostProcessing
             ////// / / / / / / / / / / / / /
             // Log writer START
             Trace.AutoFlush = true;
+            int consolewidth = 120;
+            Logger.SetConsoleSize(consolewidth, 30);
             Logger.traceSwitch.Level = (TraceLevel)verbosity;//TraceLevel.Info;
             Trace.Listeners.Clear();
 
@@ -111,16 +104,16 @@ namespace Slic3rPostProcessing
             if (show_help)
             {
                 ShowHelp(p);
-                Environment.Exit(1);
-                return 1;
+                Environment.Exit(2);
+                return 2;
             }
 
             if (booResetCounter)
             {
                 Properties.Settings.Default.export_counter = 0;
                 Properties.Settings.Default.Save();
-                Environment.Exit(1);
-                return 1;
+                Environment.Exit(3);
+                return 3;
             }
 
             if (strINputFile == null)
@@ -133,16 +126,18 @@ namespace Slic3rPostProcessing
             else
             {
                 int wait = 0;
-                int triesbeforeexit = 6;
+                int waitfor = 10;
+                int timebeforeabort = 30; // seconds
                 do
                 {
                     // wait here until the file exists.
                     // It can take some time to copy the .tmp to .gcode.
-                    if (wait > 20)
+                    if (wait > waitfor)
                     {
-                        Logger.LogInfo("Waiting for input file (" + strINputFile + ") ... does it exist? (" + triesbeforeexit * 5 + " seconds to abort)");
-                        triesbeforeexit -= 1;
-                        System.Threading.Thread.Sleep(new TimeSpan(0, 0, 5));
+                        if (wait == waitfor + 1) Logger.LogInfo("Waiting for input file (" + Path.GetFileName(strINputFile) + ") at " + Environment.NewLine + "       " + Path.GetDirectoryName(strINputFile).ToLower());
+                        Logger.LogInfoOverwrite("       (" + timebeforeabort + " seconds to abort)    ");
+                        timebeforeabort -= 1;
+                        System.Threading.Thread.Sleep(new TimeSpan(0, 0, 1));
                     }
                     else
                     {
@@ -150,7 +145,7 @@ namespace Slic3rPostProcessing
                     }
                     wait++;
 
-                    if (triesbeforeexit == 0)
+                    if (timebeforeabort == 0)
                     {
                         Logger.LogInfo("I assume there is no " + strINputFile + " and abort. Please retry, if you like, after the file actually exists.");
                         Environment.Exit(1);
@@ -159,13 +154,13 @@ namespace Slic3rPostProcessing
                 } while (!File.Exists(strINputFile));
 
                 var lines = File.ReadAllLines(strINputFile).ToList();
-                int cLines = lines.Count;
 
-                Logger.LogInfo("Running " + strINputFile);
+                Logger.LogInfo("Input :");
+                PrintFileSummary(strINputFile);
 
                 NumberFormatInfo nfi = new CultureInfo("de-CH", false).NumberFormat;
                 nfi.NumberDecimalDigits = 0;
-                Logger.LogInfo((cLines - 1).ToString("N", nfi) + " lines of gcode will be processed.");
+                Logger.LogInfo((lines.Count - 1).ToString("N", nfi) + " lines of gcode will be processed.");
 
                 string newfilename = Path.Combine(Path.GetDirectoryName(strINputFile), Guid.NewGuid().ToString().Replace("-", "") + ".gcode_temp");
 
@@ -177,8 +172,6 @@ namespace Slic3rPostProcessing
                 bool bedheaterstopped = false;
                 string FirstLayer = null;
                 double currentlayerheight = 0;
-                int repprogint = (int)(cLines * repprogress / 100);
-                int repnewprog = repprogint;
 
                 int q = -1;
 
@@ -195,17 +188,32 @@ namespace Slic3rPostProcessing
                 }
 
                 int iLayer = 0;
+
                 foreach (string l in lines)
                 {
                     Logger.LogVerbose((q + 1).ToString("N", nfi) + ": " + l);
 
                     q++;
 
-                    if (q == repnewprog)
+                    Double progress = (double)q / lines.Count;
+
+                    // Report progress every percent
+                    if (q % (lines.Count / 100) == 0)
                     {
-                        Double progress = (Double)q / (Double)cLines;
-                        Logger.LogInfo("Progress: " + Math.Round(progress * 100d, 0) + "%");
-                        repnewprog += repprogint;
+                        char pad = '\u258C'; // '▌';
+                        char spad = ' ';
+                        string prog = "";
+
+                        int progr = (int)Math.Round(progress * 100d, 0);
+                        Logger.LogInfoOverwrite("       " +
+                            String.Format("{0:P0} ", progress).PadRight(5) +
+                            prog.PadLeft(progr, pad) +
+                            prog.PadLeft(100 - progr, spad) +
+                            pad.ToString());
+                        if (progr == 100)
+                        {
+                            Console.WriteLine("");
+                        }
                     }
 
                     if (l.Contains(";layer:0;"))  //("; END Header"))
@@ -403,7 +411,7 @@ namespace Slic3rPostProcessing
 
                 try
                 {
-                    System.IO.File.WriteAllText(newfilename, sb.ToString());
+                    File.WriteAllText(newfilename, sb.ToString());
 
                     if (booCounter & booTimestamp)
                     {
@@ -415,8 +423,21 @@ namespace Slic3rPostProcessing
                         Properties.Settings.Default.export_counter++;
                         Properties.Settings.Default.Save();
                     }
-                    Logger.LogInfo("  Summary:");
+                    Logger.LogInfo("--- All Done ---");
 
+                    //
+                    //
+                    //
+                    //
+                    //
+                    //    BETTER OUTPUT!
+                    // sep path from filename
+
+                    //  Path.GetFileName(strINputFile)
+                    //  Path.GetDirectoryName(strINputFile).ToLower()
+                    //
+                    //
+                    Logger.LogInfo("Output :");
                     if (strOUTputFile != null & File.Exists(newfilename))
                     {
                         File.Delete(strOUTputFile);
@@ -424,18 +445,18 @@ namespace Slic3rPostProcessing
                         {
                             string newfile = strOUTputFile.AppendTimeStamp();
                             File.Move(newfilename, newfile);
-                            Logger.LogInfo("File written: " + newfile);
+                            PrintFileSummary(newfile);
                         }
                         else if (booCounter)
                         {
                             string newfile = strOUTputFile.PrependCounter();
                             File.Move(newfilename, strOUTputFile.PrependCounter());
-                            Logger.LogInfo("File written: " + newfile);
+                            PrintFileSummary(newfile);
                         }
                         else
                         {
                             File.Move(newfilename, strOUTputFile);
-                            Logger.LogInfo("File written: " + strOUTputFile);
+                            PrintFileSummary(strOUTputFile);
                         }
                     }
 
@@ -446,23 +467,22 @@ namespace Slic3rPostProcessing
                         {
                             string newfile = strINputFile.AppendTimeStamp();
                             File.Move(newfilename, newfile);
-                            Logger.LogInfo("File written: " + newfile);
+                            PrintFileSummary(newfile);
                         }
                         else if (booCounter)
                         {
                             string newfile = strINputFile.PrependCounter();
                             File.Move(newfilename, newfile);
-                            Logger.LogInfo("File written: " + newfile);
+                            PrintFileSummary(newfile);
                         }
                         else
                         {
                             File.Move(newfilename, strINputFile);
-                            Logger.LogInfo("File written: " + strINputFile);
+                            PrintFileSummary(strINputFile);
                         }
                     }
 
                     if (stopbeadheater > 0) { Logger.LogInfo("Bed Heater disabled after height " + stopbeadheater + " mm."); }
-                    Logger.LogInfo("All done - Thank you. Will close now ... ");
 
 #if DEBUG
                     {
@@ -483,7 +503,17 @@ namespace Slic3rPostProcessing
                     Environment.Exit(1);
                     return 1;
                 }
+                finally
+                {
+                    Logger.ResetConsoleSize();
+                }
             }
+        }
+
+        private static void PrintFileSummary(string filename)
+        {
+            Logger.LogInfo("  File name : " + Path.GetFileName(filename));
+            Logger.LogInfo("  Directory : " + Path.GetDirectoryName(filename));
         }
 
         private static string TrimComment(string line)
@@ -579,9 +609,36 @@ namespace Slic3rPostProcessing
 
     internal class Logger
     {
+        private static int origWidth { get; set; }
+        private static int origHeight { get; set; }
+
+        public static void SetConsoleSize(int width, int height)
+        {
+            //
+            // Step 1: Get the current window dimensions.
+            //
+            origWidth = Console.WindowWidth;
+            origHeight = Console.WindowHeight;
+
+            //
+            // Step 2: Cut the window to 1/4 its original size.
+            //
+            Console.SetWindowSize(width, height);
+        }
+
+        public static void ResetConsoleSize()
+        {
+            Console.SetWindowSize(origWidth, origHeight);
+        }
+
         public static void LogInfo(string message)
         {
             Trace.WriteLineIf(Logger.traceSwitch.TraceInfo, "Info : " + message);
+        }
+
+        public static void LogInfoOverwrite(string message)
+        {
+            Console.Write("\r" + message);
         }
 
         public static void Log(string message)
