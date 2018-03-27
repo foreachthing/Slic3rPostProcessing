@@ -217,14 +217,16 @@ namespace Slic3rPostProcessing
                         {
                             currentlayerheight = Convert.ToDouble(matchlayerheight.Groups[2].Value);
                             Logger.LogVerbose("Current Layer Height: " + currentlayerheight + " mm");
-
-                            if (currentlayerheight >= stopbeadheater & (bedheaterstopped == false))
+                            if (stopbeadheater > 0)
                             {
-                                sb.AppendLine("M140 S0; Stop Bed Heater on Layer Height " + currentlayerheight + " mm");
-                                bedheaterstopped = true;
-                                stopbeadheater = currentlayerheight;
-                                sb.AppendLine(l);
-                                continue;
+                                if (currentlayerheight >= stopbeadheater & (bedheaterstopped == false))
+                                {
+                                    sb.AppendLine("M140 S0; Stop Bed Heater on Layer Height " + currentlayerheight + " mm");
+                                    bedheaterstopped = true;
+                                    stopbeadheater = currentlayerheight;
+                                    sb.AppendLine(l);
+                                    continue;
+                                }
                             }
                         }
 
@@ -388,9 +390,6 @@ namespace Slic3rPostProcessing
                         Properties.Settings.Default.export_counter++;
                         Properties.Settings.Default.Save();
                     }
-                    string ts = ((char)('\u25a0')).ToString();
-                    ts = ts.PadRight(5, '\u25a0');
-                    Logger.LogInfo(ts + " All Done " + ts);
 
                     Logger.LogInfo("Output :");
                     if (strOUTputFile != null & File.Exists(newfilename))
@@ -447,6 +446,11 @@ namespace Slic3rPostProcessing
 #else
                     System.Threading.Thread.Sleep(500);
 #endif
+
+                    string ts = ((char)('\u25a0')).ToString();
+                    ts = ts.PadRight(5, '\u25a0');
+                    Logger.LogInfo(ts + " All Done " + ts);
+
                     Environment.Exit(0);
                     return 0;
                 }
