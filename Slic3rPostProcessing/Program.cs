@@ -127,8 +127,26 @@ namespace Slic3rPostProcessing
             }
             else
             {
-                WaitForFile(strINputFile);
-
+                if (!WaitForFile(strINputFile, 5))
+                {
+                    Console.WriteLine(" ");
+                    Logger.LogInfo("I assume there is no file:");
+                    PrintFileSummary(strINputFile);
+                    Logger.LogInfo("Please try again later or check your input.");
+#if DEBUG
+                    {
+                        Console.WriteLine("Press any key to continue . . .");
+                        Console.ReadKey();
+                    }
+#else
+                    {
+                        System.Threading.Thread.Sleep(500);
+                        Environment.Exit(1);
+                    }
+#endif
+                    Environment.Exit(1);
+                    return 1;
+                }
                 var lines = File.ReadAllLines(strINputFile).ToList();
 
                 Logger.LogInfo("Input :");
@@ -464,45 +482,55 @@ namespace Slic3rPostProcessing
             }
         }
 
-        private static void WaitForFile(string filename)
+        /// <summary>
+        /// Sit here and wait for 'filename'.
+        /// </summary>
+        /// <param name="filename">Filename to look for</param>
+        /// <param name="timeout">[Optional] Timeout, in seconds, to quit loop if file does not exist - ever.</param>
+        private static bool WaitForFile(string filename, int timeout = 30)
         {
-            int wait = 0;
-            int waitfor = 10;
-            int timebeforeabort = 30;
-            int dt = 0;
-            do
+            int wait = 0; // loop counter for waiting
+            int waitfor = 10; // wait this many quick loops before timeout starts
+            int dt = 0; // delta time
+            bool fileexists = File.Exists(filename);
+            bool exitloop = fileexists;
+            if (!fileexists)
             {
-                // wait here until the file exists.
-                // It can take some time to copy/rename the .tmp to .gcode.
-                // QUIT after timebeforeabort has expired.
-                if (wait > waitfor)
+                do
                 {
-                    if (wait == waitfor + 1)
+                    // wait here until the file exists.
+                    // It can take some time to copy/rename the .tmp to .gcode.
+                    // QUIT after timeout has expired.
+                    if (wait > waitfor)
                     {
-                        Console.WriteLine("");
-                        Logger.LogInfo("Waiting for input file (" + Path.GetFileName(filename) + ") at " + Environment.NewLine + "       " + Path.GetDirectoryName(filename));
+                        if (wait == waitfor + 1)
+                        {
+                            Console.WriteLine("");
+                            Logger.LogInfo("Waiting for input file (" + Path.GetFileName(filename) + ") at " + Environment.NewLine + "       " + Path.GetDirectoryName(filename));
+                        }
+
+                        int prog = 100 - (dt * 100 / timeout);
+                        Progressbar(prog, false, timeout - dt);
+                        if (timeout - dt == 0) Console.WriteLine("");
+
+                        System.Threading.Thread.Sleep(new TimeSpan(0, 0, 1));
+
+                        if (timeout - dt == 0)
+                        {
+                            exitloop = true;
+                        }
+                        dt += 1;
+                    }
+                    else
+                    {
+                        System.Threading.Thread.Sleep(50);
                     }
 
-                    int prog = 100 - (dt * 100 / timebeforeabort);
-                    Progressbar(prog, false, timebeforeabort - dt);
-                    if (timebeforeabort - dt == 0) Console.WriteLine("");
+                    wait++;
+                } while (!exitloop);
+            }
 
-                    dt += 1;
-                    System.Threading.Thread.Sleep(new TimeSpan(0, 0, 1));
-                }
-                else
-                {
-                    System.Threading.Thread.Sleep(50);
-                }
-                wait++;
-
-                if (timebeforeabort - dt == 0)
-                {
-                    Logger.LogInfo("I assume there is no " + filename + " and abort. Please retry, if you like, after the file actually exists.");
-                    Environment.Exit(1);
-                    //return 1;
-                }
-            } while (!File.Exists(filename));
+            return fileexists;
         }
 
         private static void Progressbar(double Progress, bool ReportAsPercentage = true, int Value = -1)
@@ -545,8 +573,8 @@ namespace Slic3rPostProcessing
 
         private static void PrintFileSummary(string filename)
         {
-            Logger.LogInfo("  File name : " + Path.GetFileName(filename));
-            Logger.LogInfo("  Directory : " + Path.GetDirectoryName(filename));
+            Logger.LogInfo("  File name : \"" + Path.GetFileName(filename) + "\"");
+            Logger.LogInfo("  Directory : \"" + Path.GetDirectoryName(filename) + "\"");
         }
 
         private static string TrimComment(string line)
