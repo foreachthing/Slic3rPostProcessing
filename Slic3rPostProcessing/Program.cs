@@ -51,19 +51,19 @@ namespace Slic3rPostProcessing
             bool booResetCounter = false;
 
             var p = new OptionSet() {
-                { "i|input=", "The {INPUTFILE} to process.",
+                { "i|input=", "The {INPUTFILE} to process. " + Environment.NewLine + "If file extention is omitted, .gcode will be assumed.",
                     v => strINputFile=v },
-                { "o|output=", "The {OUTPUTFILE} filename. " + Environment.NewLine + " Optional. {INPUTFILE} will get overwritten if {OUTPUTFILE} is not specified.",
+                { "o|output=", "The {OUTPUTFILE} filename. " + Environment.NewLine + "Optional. {INPUTFILE} will get overwritten if {OUTPUTFILE} is not specified. File extension will be added if omitted.",
                     v => strOUTputFile=v },
-                { "c|counter=","Adds an export-counter to the FRONT of the filename." + Environment.NewLine + " {+ or -}; Default = + " + Environment.NewLine + " If the timestamps is set to true, too, then only the counter will be added.",
+                { "c|counter=","Adds an export-counter to the FRONT of the filename." + Environment.NewLine + "{+ or -}; Default = + " + Environment.NewLine + "If the timestamp is set to true, too, then only the counter will be added.",
                     t => booCounter = t != null },
-                { "f|formatstamp=","{FORMAT} of the timestamp. " + Environment.NewLine + " Default: " + strTimeformat,
+                { "f|formatstamp=","{FORMAT} of the timestamp. " + Environment.NewLine + "Default: " + strTimeformat  + Environment.NewLine + "(right now: "+DateTime.Now.ToString(strTimeformat)+")"  ,
                     tf => strTimeformat = tf },
                 { "s|stopbedheater=","Stops heating of the bed after this height in millimeter; Default = 0 = off",
                     (double s) => { if ( s >= 0 ) stopbeadheater = s; } },
-                { "t|timestamp=","Adds a timestamp to the END of the filename." + Environment.NewLine + " {+ or -}; Default = -",
+                { "t|timestamp=","Adds a timestamp to the END of the filename." + Environment.NewLine + "{+ or -}; Default = -",
                     t => booTimestamp = t != null },
-                { "v|verbosity=", "Debug message verbosity. Default: "+ verbosity +". " + Environment.NewLine + " {INT}:" + Environment.NewLine + " 0 = Off " + Environment.NewLine + " 1 = Error " + Environment.NewLine + " 2 = Warning " + Environment.NewLine + " 3 = Info " + Environment.NewLine + " 4 = Verbose (will output EVERY line of GCode! There will be LOTS of output!)",
+                { "v|verbosity=", "Debug message verbosity. Default: "+ verbosity +". " + Environment.NewLine + "{INT}:" + Environment.NewLine + "0 = Off " + Environment.NewLine + "1 = Error " + Environment.NewLine + "2 = Warning " + Environment.NewLine + "3 = Info " + Environment.NewLine + "4 = Verbose (will output EVERY line of GCode! There will be LOTS of output!)",
                     (int v) => { if ( v >= 0 & v <5) verbosity = v; } },
                 { "resetcounter=","Reset export-counter to zero and exit (3).",
                     t => booResetCounter = t != null },
@@ -76,12 +76,11 @@ namespace Slic3rPostProcessing
             {
                 extra = p.Parse(args);
 
-                if (extra.Count == 1 & args.Length == 1)
+                if (extra.Count == 1 & args.Length == 1) strINputFile = extra[0];
+
+                if (strINputFile != null)
                 {
-                    if (extra[0].ToLower().EndsWith("gcode"))
-                    {
-                        strINputFile = extra[0];
-                    }
+                    if (!strINputFile.ToLower().EndsWith("gcode")) strINputFile += ".gcode";
                 }
             }
             catch (OptionException e)
@@ -127,7 +126,7 @@ namespace Slic3rPostProcessing
             }
             else
             {
-                if (!WaitForFile(strINputFile, 5))
+                if (!WaitForFile(strINputFile, 30))
                 {
                     Console.WriteLine(" ");
                     Logger.LogInfo("I assume there is no file:");
@@ -174,11 +173,8 @@ namespace Slic3rPostProcessing
                 // Count all Layers
                 int iLayerCount = 0;
                 foreach (string l in lines)
-                {
-                    if (l.Contains(";layer:") && (!l.Contains("before_layer_gcode")))  //("; END Header"))
-                    {
-                        iLayerCount++;
-                    }
+                { //("; END Header"))
+                    if (l.Contains(";layer:") && (!l.Contains("before_layer_gcode"))) iLayerCount++;
                 }
 
                 int iLayer = 0;
@@ -190,14 +186,8 @@ namespace Slic3rPostProcessing
                     q++;
 
                     // Report progress every percent
-                    if (q % (lines.Count / 100) == 0)
-                    {
-                        Progressbar((double)q * 100 / lines.Count);
-                    }
-                    if (q + 1 == lines.Count)
-                    {
-                        Console.WriteLine(""); Console.WriteLine("");
-                    }
+                    if (q % (lines.Count / 100) == 0) Progressbar((double)q * 100 / lines.Count);
+                    if (q + 1 == lines.Count) { Console.WriteLine(""); Console.WriteLine(""); }
 
                     if (l.Contains(";layer:0;"))  //("; END Header"))
                     {
@@ -398,10 +388,7 @@ namespace Slic3rPostProcessing
                 {
                     File.WriteAllText(newfilename, sb.ToString());
 
-                    if (booCounter & booTimestamp)
-                    {
-                        booTimestamp = false;
-                    }
+                    if (booCounter & booTimestamp) booTimestamp = false;
 
                     if (booCounter)
                     {
@@ -412,6 +399,8 @@ namespace Slic3rPostProcessing
                     Logger.LogInfo("Output :");
                     if (strOUTputFile != null & File.Exists(newfilename))
                     {
+                        if (!strOUTputFile.ToLower().EndsWith("gcode")) strOUTputFile += ".gcode";
+
                         File.Delete(strOUTputFile);
                         if (booTimestamp)
                         {
@@ -515,10 +504,8 @@ namespace Slic3rPostProcessing
 
                         System.Threading.Thread.Sleep(new TimeSpan(0, 0, 1));
 
-                        if (timeout - dt == 0)
-                        {
-                            exitloop = true;
-                        }
+                        if (timeout - dt == 0) exitloop = true;
+
                         dt += 1;
                     }
                     else
@@ -527,6 +514,13 @@ namespace Slic3rPostProcessing
                     }
 
                     wait++;
+
+                    fileexists = File.Exists(filename);
+                    if (fileexists)
+                    {
+                        Logger.LogInfo(" ");
+                        break;
+                    }
                 } while (!exitloop);
             }
 
@@ -541,23 +535,10 @@ namespace Slic3rPostProcessing
             string prog = "";
             string progformat = "";
             double newprog;
-            if (Value != -1)
-            {
-                newprog = Value;
-            }
-            else
-            {
-                newprog = Progress / 100;
-            }
 
-            if (ReportAsPercentage)
-            {
-                progformat = String.Format("{0:P0} ", newprog).PadRight(5);
-            }
-            else
-            {
-                progformat = String.Format("{0} ", newprog).PadRight(5);
-            }
+            newprog = (Value != -1) ? Value : Progress / 100;
+
+            progformat = ReportAsPercentage ? String.Format("{0:P0} ", newprog).PadRight(5) : String.Format("{0} ", newprog).PadRight(5);
 
             double doh = Progress / 100 * conswidth;
 
@@ -574,18 +555,13 @@ namespace Slic3rPostProcessing
         private static void PrintFileSummary(string filename)
         {
             Logger.LogInfo("  File name : \"" + Path.GetFileName(filename) + "\"");
-            Logger.LogInfo("  Directory : \"" + Path.GetDirectoryName(filename) + "\"");
+            if (Path.GetDirectoryName(filename) != "") Logger.LogInfo("  Directory : \"" + Path.GetDirectoryName(filename) + "\"");
         }
 
         private static string TrimComment(string line)
         {
             char[] TrimChars = new char[] { ' ' };
-
-            if (line.Contains(";"))
-            {
-                line = line.Split(';')[0].TrimEnd(TrimChars);
-            }
-
+            if (line.Contains(";")) line = line.Split(';')[0].TrimEnd(TrimChars);
             return line;
         }
 

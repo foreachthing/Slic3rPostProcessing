@@ -6,6 +6,7 @@ This tool basically looks for `; skirt` and collects this block _(skirts, perime
 
 * Adds a number prefix to the filename (no more overwriting gcode).
 * Changes the start code to be more like Cura.
+  * XYZ-move to start point after oozing.
 * Added ability to stop Bed Heater at Height x mm. See help for usage.
 * and some more ...
 
