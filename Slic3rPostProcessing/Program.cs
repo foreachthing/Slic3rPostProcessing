@@ -50,6 +50,18 @@ namespace Slic3rPostProcessing
             bool booCounter = true;
             bool booResetCounter = false;
 
+            ////// / / / / / / / / / / / / /
+            // Log writer START
+            Trace.AutoFlush = false;
+
+            Logger.traceSwitch.Level = (TraceLevel)verbosity;//TraceLevel.Info;
+            Trace.Listeners.Clear();
+
+            TextWriterTraceListener listener = new TextWriterTraceListener(Console.Out);
+            Trace.Listeners.Add(listener);
+
+            ConsoleWidth = Logger.GetConsoleWidth();
+
             var p = new OptionSet() {
                 { "i|input=", "The {INPUTFILE} to process. " + Environment.NewLine + "If file extention is omitted, .gcode will be assumed.",
                     v => strINputFile=v },
@@ -91,17 +103,6 @@ namespace Slic3rPostProcessing
                 return 1;
             }
 
-            ////// / / / / / / / / / / / / /
-            // Log writer START
-            Trace.AutoFlush = true;
-            ConsoleWidth = Logger.GetConsoleWidth();
-
-            Logger.traceSwitch.Level = (TraceLevel)verbosity;//TraceLevel.Info;
-            Trace.Listeners.Clear();
-
-            TextWriterTraceListener listener = new TextWriterTraceListener(Console.Out);
-            Trace.Listeners.Add(listener);
-
             if (show_help)
             {
                 ShowHelp(p);
@@ -129,9 +130,9 @@ namespace Slic3rPostProcessing
                 if (!WaitForFile(strINputFile, 30))
                 {
                     Console.WriteLine(" ");
-                    Logger.LogInfo("I assume there is no file:");
+                    Logger.LogWarning("I assume there is no file:");
                     PrintFileSummary(strINputFile);
-                    Logger.LogInfo("Please try again later or check your input.");
+                    Logger.LogWarning("Please try again later or check your input.");
 #if DEBUG
                     {
                         Console.WriteLine("Press any key to continue . . .");
@@ -567,8 +568,19 @@ namespace Slic3rPostProcessing
 
         private static void ShowHelp(OptionSet p)
         {
+            ConsoleColor fg = Console.ForegroundColor;
+            ConsoleColor bg = Console.BackgroundColor;
+
             Console.WriteLine();
-            Console.WriteLine("This program is for use with Slic3r or standalone.");
+            Console.BackgroundColor = ConsoleColor.Black;
+            Console.ForegroundColor = ConsoleColor.Yellow;
+
+            string textnote = "This program is for use with Slic3r (or standalone).";
+            int textlength = textnote.Length;
+            int paaad = (Program.ConsoleWidth - textlength) / 2;
+
+            Console.WriteLine("".PadLeft(paaad) + textnote.PadRight(Program.ConsoleWidth - paaad));
+            Console.ResetColor();
             Console.WriteLine();
             Console.WriteLine("Slic3r  -> Print Settings -> Output options");
             Console.WriteLine("        * Enable Verbose G-Code (!)");
@@ -576,7 +588,10 @@ namespace Slic3rPostProcessing
             Console.WriteLine("        Current filename: \"" + System.Reflection.Assembly.GetEntryAssembly().Location + "\"");
 
             Console.WriteLine();
-            Console.WriteLine("Standalone usage: Slic3rPostProcessing [OPTIONS]");
+            Console.BackgroundColor = ConsoleColor.Black;
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine("Standalone usage: Slic3rPostProcessing [OPTIONS]".PadRight(Program.ConsoleWidth));
+            Console.ResetColor();
             Console.WriteLine();
             Console.WriteLine("Options:");
             p.WriteOptionDescriptions(Console.Out);
@@ -651,9 +666,17 @@ namespace Slic3rPostProcessing
         private static int origBWidth { get; set; }
         private static int origBHeight { get; set; }
 
+        private static ConsoleColor fg = Console.ForegroundColor;
+        private static ConsoleColor bg = Console.BackgroundColor;
+
         public static int GetConsoleWidth()
         {
-            return Console.WindowWidth;
+            // IntPtr myHandle = Process.GetCurrentProcess().MainWindowHandle;
+            // NOW WHAT?! What do I do with myHandle? I Need the console!
+
+            //return Console.WindowWidth;
+
+            return 80;
         }
 
         public static void LogInfo(string message)
@@ -661,11 +684,19 @@ namespace Slic3rPostProcessing
             Trace.WriteLineIf(Logger.traceSwitch.TraceInfo, "Info : " + message);
         }
 
+        /// <summary>
+        /// Overwrites current line
+        /// </summary>
+        /// <param name="message"></param>
         public static void LogInfoOverwrite(string message)
         {
             Console.Write("\r" + message);
         }
 
+        /// <summary>
+        /// Writeline with datetime stamp
+        /// </summary>
+        /// <param name="message"></param>
         public static void Log(string message)
         {
             Trace.WriteLine(DateTime.Now + " : " + message);
@@ -678,7 +709,10 @@ namespace Slic3rPostProcessing
 
         public static void LogWarning(string message)
         {
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.BackgroundColor = ConsoleColor.Black;
             Trace.WriteLineIf(Logger.traceSwitch.TraceWarning, "WARNING : " + message);
+            Console.ResetColor();
         }
 
         public static void LogError(Exception e)
