@@ -62,31 +62,38 @@ namespace Slic3rPostProcessing
 
             ConsoleWidth = Logger.GetConsoleWidth();
 
-            var p = new OptionSet() {
-                { "i|input=", "The {INPUTFILE} to process. " + Environment.NewLine + "If file extention is omitted, .gcode will be assumed.",
-                    v => strINputFile=v },
-                { "o|output=", "The {OUTPUTFILE} filename. " + Environment.NewLine + "Optional. {INPUTFILE} will get overwritten if {OUTPUTFILE} is not specified. File extension will be added if omitted.",
-                    v => strOUTputFile=v },
-                { "c|counter=","Adds an export-counter to the FRONT of the filename." + Environment.NewLine + "{+ or -}; Default = + " + Environment.NewLine + "If the timestamp is set to true, too, then only the counter will be added.",
-                    t => booCounter = t != null },
-                { "f|formatstamp=","{FORMAT} of the timestamp. " + Environment.NewLine + "Default: " + strTimeformat  + Environment.NewLine + "(right now: "+DateTime.Now.ToString(strTimeformat)+")"  ,
-                    tf => strTimeformat = tf },
-                { "s|stopbedheater=","Stops heating of the bed after this height in millimeter; Default = 0 = off",
-                    (double s) => { if ( s >= 0 ) stopbeadheater = s; } },
-                { "t|timestamp=","Adds a timestamp to the END of the filename." + Environment.NewLine + "{+ or -}; Default = -",
-                    t => booTimestamp = t != null },
-                { "v|verbosity=", "Debug message verbosity. Default: "+ verbosity +". " + Environment.NewLine + "{INT}:" + Environment.NewLine + "0 = Off " + Environment.NewLine + "1 = Error " + Environment.NewLine + "2 = Warning " + Environment.NewLine + "3 = Info " + Environment.NewLine + "4 = Verbose (will output EVERY line of GCode! There will be LOTS of output!)",
-                    (int v) => { if ( v >= 0 & v <5) verbosity = v; } },
-                { "resetcounter=","Reset export-counter to zero and exit (3).",
-                    t => booResetCounter = t != null },
-                { "h|help",  "Show this message and exit (2). Nothing will be done.",
-                    v => show_help = v != null },
-            };
+            OptionSet os = new OptionSet();
+            os.Add("i|input=", "The {INPUTFILE} to process. " + Environment.NewLine + "If file extention is omitted, .gcode will be assumed.",
+                v => strINputFile = v);
+
+            os.Add("o|output=", "The {OUTPUTFILE} filename. " + Environment.NewLine + "Optional. {INPUTFILE} will get overwritten if {OUTPUTFILE} is not specified. File extension will be added if omitted.",
+                v => strOUTputFile = v);
+
+            os.Add("c|counter=", "Adds an export-counter to the FRONT of the filename." + Environment.NewLine + "{+ or -}; Default = + " + Environment.NewLine + "If the timestamp is set to true, too, then only the counter will be added.",
+                t => booCounter = t != null);
+
+            os.Add("f|formatstamp=", "{FORMAT} of the timestamp. " + Environment.NewLine + "Default: " + strTimeformat + Environment.NewLine + "(right now: " + DateTime.Now.ToString(strTimeformat) + ")",
+                tf => strTimeformat = tf);
+
+            os.Add("s|stopbedheater=", "Stops heating of the bed after this height in millimeter; Default = 0 = off",
+                (double s) => { if (s >= 0) stopbeadheater = s; });
+
+            os.Add("t|timestamp=", "Adds a timestamp to the END of the filename." + Environment.NewLine + "{+ or -}; Default = -",
+                t => booTimestamp = t != null);
+
+            os.Add("v|verbosity=", "Debug message verbosity. Default: " + verbosity + ". " + Environment.NewLine + "{INT}:" + Environment.NewLine + "0 = Off " + Environment.NewLine + "1 = Error " + Environment.NewLine + "2 = Warning " + Environment.NewLine + "3 = Info " + Environment.NewLine + "4 = Verbose (will output EVERY line of GCode! There will be LOTS of output!)",
+                (int v) => { if (v >= 0 & v < 5) verbosity = v; });
+
+            os.Add("resetcounter=", "Reset export-counter to zero and exit (3).",
+                t => booResetCounter = t != null);
+
+            os.Add("h|help", "Show this message and exit (2). Nothing will be done.",
+                v => show_help = v != null);
 
             List<string> extra;
             try
             {
-                extra = p.Parse(args);
+                extra = os.Parse(args);
 
                 if (extra.Count == 1 & args.Length == 1) strINputFile = extra[0];
 
@@ -98,14 +105,14 @@ namespace Slic3rPostProcessing
             catch (OptionException e)
             {
                 Logger.LogError(e.Message);
-                ShowHelp(p);
+                ShowHelp(os);
                 Environment.Exit(1);
                 return 1;
             }
 
             if (show_help)
             {
-                ShowHelp(p);
+                ShowHelp(os);
                 Environment.Exit(2);
                 return 2;
             }
@@ -121,17 +128,17 @@ namespace Slic3rPostProcessing
             if (strINputFile == null)
             {
                 // Console.WriteLine("I need an arguement; your's not good!");
-                ShowHelp(p);
+                ShowHelp(os);
                 Environment.Exit(1);
                 return 1;
             }
             else
             {
-                if (!WaitForFile(strINputFile, 30))
+                if (!WaitForFile(strINputFile, 5))
                 {
                     Console.WriteLine(" ");
-                    Logger.LogWarning("I assume there is no file:");
-                    PrintFileSummary(strINputFile);
+                    Logger.LogWarning("File not found:");
+                    PrintFileSummary(strINputFile, true);
                     Logger.LogWarning("Please try again later or check your input.");
 #if DEBUG
                     {
@@ -220,21 +227,24 @@ namespace Slic3rPostProcessing
 
                     if (StartGCode == true & EndGCode == false)
                     {
-                        Match matchlayerheight = Regex.Match(l, @"^(?:G1)\s(Z(\d+(\.\d+)?|\.\d+?))", RegexOptions.IgnoreCase);
-
-                        if (matchlayerheight.Success)
+                        //
+                        // Stop Bed Heater
+                        if (stopbeadheater > 0)
                         {
-                            currentlayerheight = Convert.ToDouble(matchlayerheight.Groups[2].Value);
-                            Logger.LogVerbose("Current Layer Height: " + currentlayerheight + " mm");
-                            if (stopbeadheater > 0)
+                            Match matchlayerheight = Regex.Match(l, @"^(?:G1)\s(Z(\d+(\.\d+)?|\.\d+?))", RegexOptions.IgnoreCase);
+
+                            if (matchlayerheight.Success)
                             {
+                                currentlayerheight = Convert.ToDouble(matchlayerheight.Groups[2].Value);
+                                Logger.LogVerbose("Current Layer Height: " + currentlayerheight + " mm");
+
                                 if (currentlayerheight >= stopbeadheater & (bedheaterstopped == false))
                                 {
                                     sb.AppendLine("M140 S0; Stop Bed Heater on Layer Height " + currentlayerheight + " mm");
+                                    sb.AppendLine("M117 Stopping Bed Heater.");
+
                                     bedheaterstopped = true;
                                     stopbeadheater = currentlayerheight;
-                                    sb.AppendLine(l);
-                                    continue;
                                 }
                             }
                         }
@@ -465,7 +475,7 @@ namespace Slic3rPostProcessing
                 catch (Exception ex)
                 {
                     Logger.LogError(ex.Message);
-                    ShowHelp(p);
+                    ShowHelp(os);
                     Environment.Exit(1);
                     return 1;
                 }
@@ -496,7 +506,7 @@ namespace Slic3rPostProcessing
                         if (wait == waitfor + 1)
                         {
                             Console.WriteLine("");
-                            Logger.LogInfo("Waiting for input file (" + Path.GetFileName(filename) + ") at " + Environment.NewLine + "       " + Path.GetDirectoryName(filename));
+                            Logger.LogInfo("Waiting for input file (" + Path.GetFileName(filename) + ") at " + Environment.NewLine + "          " + Path.GetDirectoryName(filename));
                         }
 
                         int prog = 100 - (dt * 100 / timeout);
@@ -553,10 +563,18 @@ namespace Slic3rPostProcessing
             Logger.LogInfoOverwrite(mynewfunkyprogressbar);
         }
 
-        private static void PrintFileSummary(string filename)
+        private static void PrintFileSummary(string filename, bool asWarning = false)
         {
-            Logger.LogInfo("  File name : \"" + Path.GetFileName(filename) + "\"");
-            if (Path.GetDirectoryName(filename) != "") Logger.LogInfo("  Directory : \"" + Path.GetDirectoryName(filename) + "\"");
+            if (asWarning)
+            {
+                Logger.LogWarning("  File name : \"" + Path.GetFileName(filename) + "\"");
+                if (Path.GetDirectoryName(filename) != "") Logger.LogWarning("  Directory : \"" + Path.GetDirectoryName(filename) + "\"");
+            }
+            else
+            {
+                Logger.LogInfo("  File name : \"" + Path.GetFileName(filename) + "\"");
+                if (Path.GetDirectoryName(filename) != "") Logger.LogInfo("  Directory : \"" + Path.GetDirectoryName(filename) + "\"");
+            }
         }
 
         private static string TrimComment(string line)
@@ -576,8 +594,7 @@ namespace Slic3rPostProcessing
             Console.ForegroundColor = ConsoleColor.Yellow;
 
             string textnote = "This program is for use with Slic3r (or standalone).";
-            int textlength = textnote.Length;
-            int paaad = (Program.ConsoleWidth - textlength) / 2;
+            int paaad = (Program.ConsoleWidth - textnote.Length) / 2;
 
             Console.WriteLine("".PadLeft(paaad) + textnote.PadRight(Program.ConsoleWidth - paaad));
             Console.ResetColor();
@@ -590,7 +607,11 @@ namespace Slic3rPostProcessing
             Console.WriteLine();
             Console.BackgroundColor = ConsoleColor.Black;
             Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine("Standalone usage: Slic3rPostProcessing [OPTIONS]".PadRight(Program.ConsoleWidth));
+
+            textnote = "Standalone usage: Slic3rPostProcessing [OPTIONS]";
+            paaad = (Program.ConsoleWidth - textnote.Length) / 2;
+            Console.WriteLine("".PadLeft(paaad) + textnote.PadRight(Program.ConsoleWidth - paaad));
+
             Console.ResetColor();
             Console.WriteLine();
             Console.WriteLine("Options:");
@@ -672,7 +693,8 @@ namespace Slic3rPostProcessing
         public static int GetConsoleWidth()
         {
             // IntPtr myHandle = Process.GetCurrentProcess().MainWindowHandle;
-            // NOW WHAT?! What do I do with myHandle? I Need the console!
+            // NOW WHAT?! What do I do with myHandle? I Need the console to return
+            // the width of the window.
 
             //return Console.WindowWidth;
 
@@ -681,7 +703,7 @@ namespace Slic3rPostProcessing
 
         public static void LogInfo(string message)
         {
-            Trace.WriteLineIf(Logger.traceSwitch.TraceInfo, "Info : " + message);
+            Trace.WriteLineIf(Logger.traceSwitch.TraceInfo, "Info    : " + message);
         }
 
         /// <summary>
@@ -709,10 +731,16 @@ namespace Slic3rPostProcessing
 
         public static void LogWarning(string message)
         {
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.BackgroundColor = ConsoleColor.Black;
-            Trace.WriteLineIf(Logger.traceSwitch.TraceWarning, "WARNING : " + message);
+            string warn = "WARNING :";
+
+            Console.ForegroundColor = ConsoleColor.Black;
+            Console.BackgroundColor = ConsoleColor.Yellow;
+            Trace.WriteLineIf(Logger.traceSwitch.TraceWarning, warn);
             Console.ResetColor();
+
+            Console.SetCursorPosition(warn.Length + 1, Console.CursorTop - 1);
+            Trace.WriteIf(Logger.traceSwitch.TraceWarning, message);
+            Trace.WriteLineIf(Logger.traceSwitch.TraceWarning, "");
         }
 
         public static void LogError(Exception e)

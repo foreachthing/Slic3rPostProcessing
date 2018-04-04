@@ -67,7 +67,6 @@
     </Compile>
   </ItemGroup>
   <ItemGroup>
-    <Content Include="S3erPP.ico" />
     <Content Include="SPPIcon.ico" />
   </ItemGroup>
   <ItemGroup>
@@ -81,9 +80,7 @@
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PostBuildEvent>if "$(ConfigurationName)" == "Release" xcopy "$(TargetPath)" "c:\MyProgramme\Slic3r_PostProcessing\" /r /y /c /v /q
-
-</PostBuildEvent>
+    <PostBuildEvent>if "$(ConfigurationName)" == "Release" xcopy "$(TargetPath)" "c:\MyProgramme\Slic3r_PostProcessing\" /r /y /c /v /q</PostBuildEvent>
   </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
