@@ -46,5 +46,17 @@ namespace Slic3rPostProcessing.Properties {
                 this["_UpdateRequired"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("5")]
+        public int _intCounterSize {
+            get {
+                return ((int)(this["_intCounterSize"]));
+            }
+            set {
+                this["_intCounterSize"] = value;
+            }
+        }
     }
 }

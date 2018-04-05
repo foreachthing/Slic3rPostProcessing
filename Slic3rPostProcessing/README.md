@@ -28,7 +28,7 @@ This tool basically looks for `; skirt` and collects this block _(skirts, perime
 
 ## Standalone:
 Pass your GCode file, from Slic3r, to this exe. Either provide an output filename or not. If no output filename is given, then the original file will be overwritten.
-Example: `Slic3rPostProcessing.exe "c:\temp\myfile.gcode" "c:\temp\mynewfile.gcode"`
+Example: `Slic3rPostProcessing.exe -i "c:\temp\myfile.gcode" -o "c:\temp\mynewfile.gcode"`
 The `mynewfile.gcode` can now be viewed in CraftWare - in color!
 
 

@@ -20,7 +20,7 @@ namespace Slic3rPostProcessing
 
         public static int ConsoleWidth { get; set; }
 
-        public static string strTimeformat = "HHmmss-yyyyMMdd";
+        public static string strTimeformat = "yyMMdd-HHmmss";
 
         /// <summary>
         /// Post processing for Slic3r to color the toolpaths to view in Craftware
@@ -32,6 +32,8 @@ namespace Slic3rPostProcessing
         /// End G-Code: `; END Footer`.</remarks>
         private static int Main(string[] args)
         {
+            Properties.Settings.Default.Reload();
+
             if (Properties.Settings.Default._UpdateRequired == true)
             {
                 Properties.Settings.Default.Upgrade();
@@ -42,53 +44,54 @@ namespace Slic3rPostProcessing
             bool show_help = false;
 
             int verbosity = 3;
+            int intSizeOfCounter = Properties.Settings.Default._intCounterSize;
             double stopbeadheater = 0d;
             string strINputFile = null;
             string strOUTputFile = null;
 
             bool booTimestamp = false;
             bool booCounter = true;
+            bool booRemoveConfig = false;
             bool booResetCounter = false;
 
             ////// / / / / / / / / / / / / /
             // Log writer START
             Trace.AutoFlush = false;
 
-            Logger.traceSwitch.Level = (TraceLevel)verbosity;//TraceLevel.Info;
-            Trace.Listeners.Clear();
-
-            TextWriterTraceListener listener = new TextWriterTraceListener(Console.Out);
-            Trace.Listeners.Add(listener);
-
             ConsoleWidth = Logger.GetConsoleWidth();
 
             OptionSet os = new OptionSet();
-            os.Add("i|input=", "The {INPUTFILE} to process. " + Environment.NewLine + "If file extention is omitted, .gcode will be assumed.",
-                v => strINputFile = v);
+            os.Add("i|input=", "The {INPUT} to process. " + Environment.NewLine + "If file extention is omitted, .gcode will be assumed.",
+                i => strINputFile = i);
 
-            os.Add("o|output=", "The {OUTPUTFILE} filename. " + Environment.NewLine + "Optional. {INPUTFILE} will get overwritten if {OUTPUTFILE} is not specified. File extension will be added if omitted.",
-                v => strOUTputFile = v);
+            os.Add("o|output=", "The {OUTPUT} filename. " + Environment.NewLine + "Optional. {INPUT} will get overwritten if {OUTPUT} is not specified. File extension will be added if omitted.",
+                o => strOUTputFile = o);
 
-            os.Add("c|counter=", "Adds an export-counter to the FRONT of the filename." + Environment.NewLine + "{+ or -}; Default = + " + Environment.NewLine + "If the timestamp is set to true, too, then only the counter will be added.",
-                t => booCounter = t != null);
+            os.Add("c|counter=", "Adds an export-counter to the FRONT of the filename ({+ or -})." + Environment.NewLine + "Default: -c+ (true)" + Environment.NewLine + "If the timestamp is set to true as well, only the counter will be added.",
+                c => booCounter = c != null);
 
-            os.Add("f|formatstamp=", "{FORMAT} of the timestamp. " + Environment.NewLine + "Default: " + strTimeformat + Environment.NewLine + "(right now: " + DateTime.Now.ToString(strTimeformat) + ")",
-                tf => strTimeformat = tf);
+            os.Add("cd|counterdigits=", "Counter padded with this many zeros {1-10}. Default " + intSizeOfCounter.ToString() + ". Next counter: " + (Properties.Settings.Default.export_counter + 1).ToString("D" + intSizeOfCounter.ToString()), (int cd) => { if (cd > 0 & cd < 11) intSizeOfCounter = cd; });
 
-            os.Add("s|stopbedheater=", "Stops heating of the bed after this height in millimeter; Default = 0 = off",
+            os.Add("r|removeconfig=", "Removes Configuration at end of file ({+ or -}). Everything after \"END FOOTER\" will be removed." + Environment.NewLine + "Default: -r- (false).",
+                r => booRemoveConfig = r != null);
+
+            os.Add("s|stopbedheater=", "Stops heating of the bed after this height in millimeter ({0-inf}). Default = 0 => off",
                 (double s) => { if (s >= 0) stopbeadheater = s; });
 
-            os.Add("t|timestamp=", "Adds a timestamp to the END of the filename." + Environment.NewLine + "{+ or -}; Default = -",
+            os.Add("t|timestamp=", "Adds a timestamp to the END of the filename ({+ or -})." + Environment.NewLine + "Default: -t- (false)",
                 t => booTimestamp = t != null);
 
-            os.Add("v|verbosity=", "Debug message verbosity. Default: " + verbosity + ". " + Environment.NewLine + "{INT}:" + Environment.NewLine + "0 = Off " + Environment.NewLine + "1 = Error " + Environment.NewLine + "2 = Warning " + Environment.NewLine + "3 = Info " + Environment.NewLine + "4 = Verbose (will output EVERY line of GCode! There will be LOTS of output!)",
+            os.Add("tf|timeformat=", "{FORMAT} of the timestamp. Default: \"" + strTimeformat + "\" Right now: " + DateTime.Now.ToString(strTimeformat),
+                f => strTimeformat = f);
+
+            os.Add("v|verbosity=", "Debug message verbosity ({0-4}). Default: " + verbosity + ". " + Environment.NewLine + "0 = Off " + Environment.NewLine + "1 = Error " + Environment.NewLine + "2 = Warning " + Environment.NewLine + "3 = Info " + Environment.NewLine + "4 = Verbose (this will output EVERY line of GCode!)",
                 (int v) => { if (v >= 0 & v < 5) verbosity = v; });
 
-            os.Add("resetcounter=", "Reset export-counter to zero and exit (3).",
-                t => booResetCounter = t != null);
+            os.Add("x|resetcounter", "Reset export-counter to zero and exit (3).",
+              x => booResetCounter = x != null);
 
             os.Add("h|help", "Show this message and exit (2). Nothing will be done.",
-                v => show_help = v != null);
+                h => show_help = h != null);
 
             List<string> extra;
             try
@@ -110,6 +113,12 @@ namespace Slic3rPostProcessing
                 return 1;
             }
 
+            Logger.traceSwitch.Level = (TraceLevel)verbosity;//TraceLevel.Info;
+            Trace.Listeners.Clear();
+
+            TextWriterTraceListener listener = new TextWriterTraceListener(Console.Out);
+            Trace.Listeners.Add(listener);
+
             if (show_help)
             {
                 ShowHelp(os);
@@ -123,6 +132,14 @@ namespace Slic3rPostProcessing
                 Properties.Settings.Default.Save();
                 Environment.Exit(3);
                 return 3;
+            }
+
+            if (Properties.Settings.Default._intCounterSize != intSizeOfCounter)
+            {
+                // add settings to user-settings
+                Properties.Settings.Default._intCounterSize = intSizeOfCounter;
+                Properties.Settings.Default.Save();
+                //
             }
 
             if (strINputFile == null)
@@ -168,9 +185,11 @@ namespace Slic3rPostProcessing
                 ResetAllCountersButThis(DonotReset.AllReverseNone);
                 bool StartGCode = false;
                 bool EndGCode = false;
+                bool EndFooter = false;
                 bool StartPoint = false;
                 bool FirstLine = false;
                 bool bedheaterstopped = false;
+                bool eof = false;
                 string FirstLayer = null;
                 double currentlayerheight = 0;
 
@@ -189,14 +208,17 @@ namespace Slic3rPostProcessing
                 Console.WriteLine("");
                 foreach (string l in lines)
                 {
-                    Logger.LogVerbose((q + 1).ToString("N", nfi) + ": " + l);
+                    int paddingverbose = lines.Count.ToString().Length;
+                    Logger.LogVerbose((q + 1).ToString("N", nfi).PadLeft(paddingverbose) + ": " + l);
 
                     q++;
 
-                    // Report progress every percent
-                    if (q % (lines.Count / 100) == 0) Progressbar((double)q * 100 / lines.Count);
-                    if (q + 1 == lines.Count) { Console.WriteLine(""); Console.WriteLine(""); }
-
+                    // Report progress every percent; if not verbose
+                    if (Logger.traceSwitch.Level == TraceLevel.Info)
+                    {
+                        if (q % (lines.Count / 100) == 0) Progressbar((double)q * 100 / lines.Count);
+                        if (q + 1 == lines.Count) { Console.WriteLine(""); Console.WriteLine(""); }
+                    }
                     if (l.Contains(";layer:0;"))  //("; END Header"))
                     {
                         StartGCode = true;
@@ -204,28 +226,44 @@ namespace Slic3rPostProcessing
                         continue;
                     }
 
-                    if (l.Contains("; END Footer"))
-                    {
-                        EndGCode = true;
-                        sb.AppendLine(l);
-                        continue;
-                    }
-
-                    if (l.Contains("; # # # # # # Header"))
+                    if (l.Contains(";") & l.Contains("START Header") & !eof)
                     {
                         StartGCode = false;
                         sb.AppendLine(l);
                         continue;
                     }
 
-                    if (l.Contains("; # # # # # # Footer"))
+                    if (l.Contains(";") & l.Contains("START Footer") & !eof)
                     {
                         EndGCode = true;
                         sb.AppendLine(l);
                         continue;
                     }
 
-                    if (StartGCode == true & EndGCode == false)
+                    if (l.Contains(";") & l.Contains("END Footer") & !eof)
+                    {
+                        EndGCode = true;
+                        EndFooter = true;
+                        sb.AppendLine(l);
+                        continue;
+                    }
+
+                    // exit if no config should remain with the file
+                    if (booRemoveConfig && EndFooter)
+                    {
+                        // if at end of footer, go to next empty line and then break;
+                        if (l == string.Empty & !eof)
+                        {
+                            eof = true;
+                            continue;
+                        }
+                        else
+                        {
+                            continue;
+                        }
+                    }
+
+                    if (StartGCode & !EndGCode)
                     {
                         //
                         // Stop Bed Heater
@@ -291,7 +329,7 @@ namespace Slic3rPostProcessing
                             // RESET counter
                             ResetAllCountersButThis(DonotReset.SkirtSegment);
 
-                            Logger.LogVerbose(" -->  " + l);
+                            Logger.LogVerbose("".PadLeft(paddingverbose) + " -->  " + l);
 
                             if (l.Contains("segType:Skirt") | insertedSkirtSegment != 0)
                             {
@@ -300,6 +338,7 @@ namespace Slic3rPostProcessing
                             else
                             {
                                 sb.AppendLine(";segType:Skirt");
+                                sb.AppendLine(";Type:Skirt".ToUpper());
                                 sb.AppendLine(TrimComment(l));
                                 insertedSkirtSegment = 1;
                             }
@@ -311,7 +350,7 @@ namespace Slic3rPostProcessing
                             // RESET counter
                             ResetAllCountersButThis(DonotReset.InfillSegment);
 
-                            Logger.LogVerbose(" -->  " + l);
+                            Logger.LogVerbose("".PadLeft(paddingverbose) + " -->  " + l);
 
                             if (l.Contains("segType:Infill") | insertedInfillSegment != 0)
                             {
@@ -320,6 +359,7 @@ namespace Slic3rPostProcessing
                             else
                             {
                                 sb.AppendLine(";segType:Infill");
+                                sb.AppendLine(";Type:Infill".ToUpper());
                                 sb.AppendLine(TrimComment(l));
                                 insertedInfillSegment = 1;
                             }
@@ -331,7 +371,7 @@ namespace Slic3rPostProcessing
                             // RESET counter
                             ResetAllCountersButThis(DonotReset.SoftSupportSegment);
 
-                            Logger.LogVerbose(" -->  " + l);
+                            Logger.LogVerbose("".PadLeft(paddingverbose) + " -->  " + l);
 
                             if (l.Contains("segType:SoftSupport") | insertedSoftSupportSegment != 0)
                             {
@@ -340,6 +380,7 @@ namespace Slic3rPostProcessing
                             else
                             {
                                 sb.AppendLine(";segType:SoftSupport");
+                                sb.AppendLine(";Type:SoftSupport".ToUpper());
                                 sb.AppendLine(TrimComment(l));
                                 insertedSoftSupportSegment = 1;
                             }
@@ -351,7 +392,7 @@ namespace Slic3rPostProcessing
                             // RESET counter
                             ResetAllCountersButThis(DonotReset.SupportSegment);
 
-                            Logger.LogVerbose(" -->  " + l);
+                            Logger.LogVerbose("".PadLeft(paddingverbose) + " -->  " + l);
 
                             if (l.Contains("segType:Support") | insertedSupportSegment != 0)
                             {
@@ -360,6 +401,7 @@ namespace Slic3rPostProcessing
                             else
                             {
                                 sb.AppendLine(";segType:Support");
+                                sb.AppendLine(";Type:Support".ToUpper());
                                 sb.AppendLine(TrimComment(l));
                                 insertedSupportSegment = 1;
                             }
@@ -371,7 +413,7 @@ namespace Slic3rPostProcessing
                             // RESET counter
                             ResetAllCountersButThis(DonotReset.PerimeterSegment);
 
-                            Logger.LogVerbose(" -->  " + l);
+                            Logger.LogVerbose("".PadLeft(paddingverbose) + " -->  " + l);
 
                             if (l.Contains("segType:Perimeter") | insertedPerimeterSegment != 0)
                             {
@@ -380,6 +422,7 @@ namespace Slic3rPostProcessing
                             else
                             {
                                 sb.AppendLine(";segType:Perimeter");
+                                sb.AppendLine(";Type:Perimeter".ToUpper());
                                 sb.AppendLine(TrimComment(l));
                                 insertedPerimeterSegment = 1;
                             }
@@ -421,8 +464,8 @@ namespace Slic3rPostProcessing
                         }
                         else if (booCounter)
                         {
-                            string newfile = strOUTputFile.PrependCounter();
-                            File.Move(newfilename, strOUTputFile.PrependCounter());
+                            string newfile = strOUTputFile.PrependCounter(intSizeOfCounter);
+                            File.Move(newfilename, strOUTputFile.PrependCounter(intSizeOfCounter));
                             PrintFileSummary(newfile);
                         }
                         else
@@ -443,7 +486,7 @@ namespace Slic3rPostProcessing
                         }
                         else if (booCounter)
                         {
-                            string newfile = strINputFile.PrependCounter();
+                            string newfile = strINputFile.PrependCounter(intSizeOfCounter);
                             File.Move(newfilename, newfile);
                             PrintFileSummary(newfile);
                         }
@@ -455,6 +498,7 @@ namespace Slic3rPostProcessing
                     }
 
                     if (stopbeadheater > 0) { Logger.LogInfo("Bed Heater disabled after height " + stopbeadheater + " mm."); }
+                    if (booRemoveConfig) { Logger.LogInfo("Configuration/Settings have been removed from GCode."); }
 
 #if DEBUG
                     {
@@ -599,10 +643,16 @@ namespace Slic3rPostProcessing
             Console.WriteLine("".PadLeft(paaad) + textnote.PadRight(Program.ConsoleWidth - paaad));
             Console.ResetColor();
             Console.WriteLine();
-            Console.WriteLine("Slic3r  -> Print Settings -> Output options");
-            Console.WriteLine("        * Enable Verbose G-Code (!)");
-            Console.WriteLine("        * Put full filename to " + Path.GetFileName(System.Reflection.Assembly.GetEntryAssembly().Location) + " in Post-Processing Scripts.");
-            Console.WriteLine("        Current filename: \"" + System.Reflection.Assembly.GetEntryAssembly().Location + "\"");
+            Console.WriteLine("  Print Settings -> Output options");
+            Console.WriteLine("    * Enable Verbose G-Code (!)");
+
+            Console.WriteLine("    * Put this filename " + Path.GetFileName(System.Reflection.Assembly.GetEntryAssembly().Location) + " in Post-Processing Scripts.");
+            Console.WriteLine("      Current filename: \"" + System.Reflection.Assembly.GetEntryAssembly().Location + "\"");
+
+            Console.WriteLine("");
+            Console.WriteLine("  Printer Settings:");
+            Console.WriteLine("    * Add \"; START Header\" and \"; END Header\" to your Start GCode.");
+            Console.WriteLine("    * Add \"; START Footer\" and \"; END Footer\" to your End GCode.");
 
             Console.WriteLine();
             Console.BackgroundColor = ConsoleColor.Black;
@@ -668,12 +718,14 @@ namespace Slic3rPostProcessing
                 + Path.GetExtension(fileName));
         }
 
-        public static string PrependCounter(this string fileName)
+        public static string PrependCounter(this string fileName, int digits)
         {
             int counter = Properties.Settings.Default.export_counter;
 
+            string numformat = "D" + digits.ToString();
+
             return Path.Combine(Path.GetDirectoryName(fileName),
-                counter.ToString("D6")
+                counter.ToString(numformat)
                 + "_"
                 + Path.GetFileNameWithoutExtension(fileName)
                 + Path.GetExtension(fileName));
