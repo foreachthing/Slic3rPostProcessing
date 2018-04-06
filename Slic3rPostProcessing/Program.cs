@@ -5,8 +5,10 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Diagnostics;
-using NDesk.Options;
 using System.Globalization;
+using System.Configuration;
+using System.Collections.Specialized;
+using Mono.Options;
 
 namespace Slic3rPostProcessing
 {
@@ -21,6 +23,8 @@ namespace Slic3rPostProcessing
         public static int ConsoleWidth { get; set; }
 
         public static string strTimeformat = "yyMMdd-HHmmss";
+        public static int intExportCounter;
+        public static int intSizeOfCounter;
 
         /// <summary>
         /// Post processing for Slic3r to color the toolpaths to view in Craftware
@@ -34,17 +38,22 @@ namespace Slic3rPostProcessing
         {
             Properties.Settings.Default.Reload();
 
-            if (Properties.Settings.Default._UpdateRequired == true)
+            string inifile = Path.Combine(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location), "settings.ini");
+            INI inisettings = new INI(inifile);
+
+            if (!File.Exists(inifile))
             {
-                Properties.Settings.Default.Upgrade();
-                Properties.Settings.Default._UpdateRequired = false;
-                Properties.Settings.Default.Save();
+                inisettings.WriteValue("ExportCounter", "PostProcessing", 0.ToString());
+                inisettings.WriteValue("CounterPadding", "PostProcessing", 6.ToString());
+                inisettings.Save();
             }
+
+            int.TryParse(inisettings.GetValue("ExportCounter", "PostProcessing"), out intExportCounter);
+            int.TryParse(inisettings.GetValue("CounterPadding", "PostProcessing"), out intSizeOfCounter);
 
             bool show_help = false;
 
             int verbosity = 3;
-            int intSizeOfCounter = Properties.Settings.Default._intCounterSize;
             double stopbeadheater = 0d;
             string strINputFile = null;
             string strOUTputFile = null;
@@ -67,10 +76,8 @@ namespace Slic3rPostProcessing
             os.Add("o|output=", "The {OUTPUT} filename. " + Environment.NewLine + "Optional. {INPUT} will get overwritten if {OUTPUT} is not specified. File extension will be added if omitted.",
                 o => strOUTputFile = o);
 
-            os.Add("c|counter=", "Adds an export-counter to the FRONT of the filename ({+ or -})." + Environment.NewLine + "Default: -c+ (true)" + Environment.NewLine + "If the timestamp is set to true as well, only the counter will be added.",
+            os.Add("c|counter=", "Adds an export-counter to the FRONT of the filename ({+ or -}). Default: -c+ (true)" + Environment.NewLine + "Next counter: " + (intExportCounter).ToString("D" + intSizeOfCounter) + Environment.NewLine + "(If the timestamp is set to true as well, only the counter will be added.)",
                 c => booCounter = c != null);
-
-            os.Add("cd|counterdigits=", "Counter padded with this many zeros {1-10}. Default " + intSizeOfCounter.ToString() + ". Next counter: " + (Properties.Settings.Default.export_counter + 1).ToString("D" + intSizeOfCounter.ToString()), (int cd) => { if (cd > 0 & cd < 11) intSizeOfCounter = cd; });
 
             os.Add("r|removeconfig=", "Removes Configuration at end of file ({+ or -}). Everything after \"END FOOTER\" will be removed." + Environment.NewLine + "Default: -r- (false).",
                 r => booRemoveConfig = r != null);
@@ -128,23 +135,16 @@ namespace Slic3rPostProcessing
 
             if (booResetCounter)
             {
-                Properties.Settings.Default.export_counter = 0;
-                Properties.Settings.Default.Save();
+                intExportCounter = 0;
+                inisettings.WriteValue("ExportCounter", "PostProcessing", 0.ToString());
+                inisettings.Save();
                 Environment.Exit(3);
                 return 3;
             }
 
-            if (Properties.Settings.Default._intCounterSize != intSizeOfCounter)
-            {
-                // add settings to user-settings
-                Properties.Settings.Default._intCounterSize = intSizeOfCounter;
-                Properties.Settings.Default.Save();
-                //
-            }
-
             if (strINputFile == null)
             {
-                // Console.WriteLine("I need an arguement; your's not good!");
+                // Console.WriteLine("I need an argument; your's not good!");
                 ShowHelp(os);
                 Environment.Exit(1);
                 return 1;
@@ -444,12 +444,6 @@ namespace Slic3rPostProcessing
 
                     if (booCounter & booTimestamp) booTimestamp = false;
 
-                    if (booCounter)
-                    {
-                        Properties.Settings.Default.export_counter++;
-                        Properties.Settings.Default.Save();
-                    }
-
                     Logger.LogInfo("Output :");
                     if (strOUTputFile != null & File.Exists(newfilename))
                     {
@@ -464,8 +458,8 @@ namespace Slic3rPostProcessing
                         }
                         else if (booCounter)
                         {
-                            string newfile = strOUTputFile.PrependCounter(intSizeOfCounter);
-                            File.Move(newfilename, strOUTputFile.PrependCounter(intSizeOfCounter));
+                            string newfile = strOUTputFile.PrependCounter();
+                            File.Move(newfilename, newfile);
                             PrintFileSummary(newfile);
                         }
                         else
@@ -486,7 +480,7 @@ namespace Slic3rPostProcessing
                         }
                         else if (booCounter)
                         {
-                            string newfile = strINputFile.PrependCounter(intSizeOfCounter);
+                            string newfile = strINputFile.PrependCounter();
                             File.Move(newfilename, newfile);
                             PrintFileSummary(newfile);
                         }
@@ -500,6 +494,18 @@ namespace Slic3rPostProcessing
                     if (stopbeadheater > 0) { Logger.LogInfo("Bed Heater disabled after height " + stopbeadheater + " mm."); }
                     if (booRemoveConfig) { Logger.LogInfo("Configuration/Settings have been removed from GCode."); }
 
+                    intExportCounter++;
+                    inisettings.WriteValue("ExportCounter", "PostProcessing", intExportCounter.ToString());
+                    inisettings.Save();
+
+                    string ts = ((char)('\u25a0')).ToString().PadRight(5, '\u25a0');
+                    Logger.LogInfo(ts + " All Done " + ts);
+
+                    //
+                    //
+                    //
+                    // END OF EVERYTHING
+
 #if DEBUG
                     {
                         Console.WriteLine("Press any key to continue . . .");
@@ -508,10 +514,6 @@ namespace Slic3rPostProcessing
 #else
                     System.Threading.Thread.Sleep(500);
 #endif
-
-                    string ts = ((char)('\u25a0')).ToString();
-                    ts = ts.PadRight(5, '\u25a0');
-                    Logger.LogInfo(ts + " All Done " + ts);
 
                     Environment.Exit(0);
                     return 0;
@@ -584,22 +586,22 @@ namespace Slic3rPostProcessing
 
         private static void Progressbar(double Progress, bool ReportAsPercentage = true, int Value = -1)
         {
-            int conswidth = ConsoleWidth - 20;
+            int conswidth = ConsoleWidth - 2;
             char pad = '\u2588'; //  '█';
             char spad = '\u2591'; // '░';
             string prog = "";
             string progformat = "";
-            double newprog;
+            double newprog = (Value != -1) ? Value : Progress / 100;
 
-            newprog = (Value != -1) ? Value : Progress / 100;
+            progformat = ReportAsPercentage ? String.Format("{0:P0} ", newprog).PadRight(5).PadLeft(10) : String.Format("{0} ", newprog).PadRight(5).PadLeft(10);
+            //progformat = "       " + progformat;
 
-            progformat = ReportAsPercentage ? String.Format("{0:P0} ", newprog).PadRight(5) : String.Format("{0} ", newprog).PadRight(5);
+            conswidth -= progformat.Length;
+            double consprog = Progress / 100 * conswidth;
 
-            double doh = Progress / 100 * conswidth;
+            int progr = (int)Math.Round(consprog, 0);
 
-            int progr = (int)Math.Round(doh, 0);
-
-            string mynewfunkyprogressbar = "       " +
+            string mynewfunkyprogressbar =
                 progformat +
                 prog.PadLeft(progr, pad) +
                 prog.PadLeft(conswidth - progr, spad);
@@ -630,6 +632,8 @@ namespace Slic3rPostProcessing
 
         private static void ShowHelp(OptionSet p)
         {
+            string pathname = Path.GetFullPath(System.Reflection.Assembly.GetEntryAssembly().Location);
+
             ConsoleColor fg = Console.ForegroundColor;
             ConsoleColor bg = Console.BackgroundColor;
 
@@ -637,30 +641,30 @@ namespace Slic3rPostProcessing
             Console.BackgroundColor = ConsoleColor.Black;
             Console.ForegroundColor = ConsoleColor.Yellow;
 
-            string textnote = "This program is for use with Slic3r (or standalone).";
-            int paaad = (Program.ConsoleWidth - textnote.Length) / 2;
+            string textnote = "This program is for use with Slic3r (standalone use see below).";
+            int paddin = (Program.ConsoleWidth - textnote.Length) / 2;
 
-            Console.WriteLine("".PadLeft(paaad) + textnote.PadRight(Program.ConsoleWidth - paaad));
+            Console.WriteLine("".PadLeft(paddin) + textnote.PadRight(Program.ConsoleWidth - paddin));
             Console.ResetColor();
             Console.WriteLine();
             Console.WriteLine("  Print Settings -> Output options");
             Console.WriteLine("    * Enable Verbose G-Code (!)");
 
-            Console.WriteLine("    * Put this filename " + Path.GetFileName(System.Reflection.Assembly.GetEntryAssembly().Location) + " in Post-Processing Scripts.");
-            Console.WriteLine("      Current filename: \"" + System.Reflection.Assembly.GetEntryAssembly().Location + "\"");
+            Console.WriteLine("    * Put this filename in Post-Processing Scripts:");
+            Console.WriteLine("      \"" + pathname + "\"");
 
             Console.WriteLine("");
             Console.WriteLine("  Printer Settings:");
-            Console.WriteLine("    * Add \"; START Header\" and \"; END Header\" to your Start GCode.");
-            Console.WriteLine("    * Add \"; START Footer\" and \"; END Footer\" to your End GCode.");
+            Console.WriteLine("    * Add \'; START Header\' and \'; END Header\' to your Start GCode.");
+            Console.WriteLine("    * Add \'; START Footer\' and \'; END Footer\' to your End GCode.");
 
             Console.WriteLine();
             Console.BackgroundColor = ConsoleColor.Black;
             Console.ForegroundColor = ConsoleColor.Yellow;
 
-            textnote = "Standalone usage: Slic3rPostProcessing [OPTIONS]";
-            paaad = (Program.ConsoleWidth - textnote.Length) / 2;
-            Console.WriteLine("".PadLeft(paaad) + textnote.PadRight(Program.ConsoleWidth - paaad));
+            textnote = "Standalone use: Slic3rPostProcessing [OPTIONS]";
+            paddin = (Program.ConsoleWidth - textnote.Length) / 2;
+            Console.WriteLine("".PadLeft(paddin) + textnote.PadRight(Program.ConsoleWidth - paddin));
 
             Console.ResetColor();
             Console.WriteLine();
@@ -709,6 +713,11 @@ namespace Slic3rPostProcessing
 
     public static class MyExtensions
     {
+        public static double hoch(this double das, double Exponent)
+        {
+            return Math.Pow(das, Exponent);
+        }
+
         public static string AppendTimeStamp(this string fileName)
         {
             return Path.Combine(Path.GetDirectoryName(fileName),
@@ -718,14 +727,19 @@ namespace Slic3rPostProcessing
                 + Path.GetExtension(fileName));
         }
 
-        public static string PrependCounter(this string fileName, int digits)
+        /// <summary>
+        /// Adds counter to fileName
+        /// </summary>
+        /// <param name="fileName">Filename to add counter to</param>
+        /// <param name="counter">Counter to add</param>
+        /// <param name="digits">Number of digits padded with zero</param>
+        /// <returns></returns>
+        public static string PrependCounter(this string fileName)
         {
-            int counter = Properties.Settings.Default.export_counter;
-
-            string numformat = "D" + digits.ToString();
+            string numformat = "D" + Program.intSizeOfCounter.ToString();
 
             return Path.Combine(Path.GetDirectoryName(fileName),
-                counter.ToString(numformat)
+                Program.intExportCounter.ToString(numformat)
                 + "_"
                 + Path.GetFileNameWithoutExtension(fileName)
                 + Path.GetExtension(fileName));

@@ -22,41 +22,5 @@ namespace Slic3rPostProcessing.Properties {
                 return defaultInstance;
             }
         }
-        
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("0")]
-        public int export_counter {
-            get {
-                return ((int)(this["export_counter"]));
-            }
-            set {
-                this["export_counter"] = value;
-            }
-        }
-        
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("True")]
-        public bool _UpdateRequired {
-            get {
-                return ((bool)(this["_UpdateRequired"]));
-            }
-            set {
-                this["_UpdateRequired"] = value;
-            }
-        }
-        
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("5")]
-        public int _intCounterSize {
-            get {
-                return ((int)(this["_intCounterSize"]));
-            }
-            set {
-                this["_intCounterSize"] = value;
-            }
-        }
     }
 }
