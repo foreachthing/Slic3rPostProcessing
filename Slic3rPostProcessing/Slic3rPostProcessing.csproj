@@ -77,7 +77,7 @@
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PostBuildEvent>if "$(ConfigurationName)" == "Release" xcopy "$(TargetDir)*.*" "c:\MyProgramme\Slic3r_PostProcessing\" /r /y /c /v
+    <PostBuildEvent>if "$(ConfigurationName)" == "Release" xcopy "$(TargetDir)*.*" "c:\REM MyProgramme\Slic3r_PostProcessing\" /r /y /c /v
 
 
 
