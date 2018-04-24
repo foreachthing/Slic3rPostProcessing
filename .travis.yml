@@ -1,13 +1,2 @@
 language: csharp
 solution: Slic3rPostProcessing.sln
-
-deploy:
-  provider: releases
-  api_key: "8cf426be87c3d33c4d9ff9f52e3acf9c295a969f"
-  file: 
-   - "Slic3rPostProcessing.exe"
-   - "NDesk.Options.dll"
-  skip_cleanup: true
-  overwrite: true
-  on:
-    untagged-*
