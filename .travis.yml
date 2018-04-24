@@ -8,5 +8,6 @@ deploy:
    - "Slic3rPostProcessing.exe"
    - "NDesk.Options.dll"
   skip_cleanup: true
+  overwrite: true
   on:
-    tags: true
+    untagged-*
