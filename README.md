@@ -1,5 +1,7 @@
 # Slic3r-Post-Processing
 
+[![https://travis-ci.org/foreachthing/Slic3rPostProcessing](https://travis-ci.org/foreachthing/Slic3rPostProcessing.svg?branch=master)](https://travis-ci.org/foreachthing/Slic3rPostProcessing)
+
 ## What it does
 Post processing for [Slic3r](http://slic3r.org) to color the toolpaths to view in [CraftWare](https://craftunique.com/craftware).
 This tool basically looks for `; skirt` and collects this block _(skirts, perimeter, softsupport and support are supported)_ and writes `;segType:Skirt` before. Then, it removes the verbose output to reduce the file size.
