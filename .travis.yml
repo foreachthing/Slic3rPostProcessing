@@ -2,7 +2,6 @@ language: csharp
 solution: Slic3rPostProcessing.sln
 
 before_deploy:
-	# Set up git user name and tag this commit
 	- git config --local user.name "foreachthing"
 	- git config --local user.email "mrp@gmx.ch"
 	- git tag "$(date +'%Y%m%d%H%M%S')-$(git log --format=%h -1)"
