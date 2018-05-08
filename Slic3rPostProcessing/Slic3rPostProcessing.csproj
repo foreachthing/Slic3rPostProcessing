@@ -109,8 +109,7 @@
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PostBuildEvent>
-
+    <PostBuildEvent>if "$(ConfigurationName)" == "Release" xcopy "$(TargetDir)*.*" "c:\MyProgramme\Slic3r_PostProcessing\" /r /y /c /v
 
 
 </PostBuildEvent>

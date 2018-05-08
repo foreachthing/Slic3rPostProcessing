@@ -797,16 +797,22 @@ namespace Slic3rPostProcessing
 
         public static void LogWarning(string message)
         {
-            string warn = "WARNING :";
+            try
+            {
+                string warn = "WARNING :";
 
-            Console.ForegroundColor = ConsoleColor.Black;
-            Console.BackgroundColor = ConsoleColor.Yellow;
-            Trace.WriteLineIf(Logger.traceSwitch.TraceWarning, warn);
-            Console.ResetColor();
+                Console.ForegroundColor = ConsoleColor.Black;
+                Console.BackgroundColor = ConsoleColor.Yellow;
+                Trace.WriteLineIf(Logger.traceSwitch.TraceWarning, warn);
+                Console.ResetColor();
 
-            Console.SetCursorPosition(warn.Length + 1, Console.CursorTop - 1);
-            Trace.WriteIf(Logger.traceSwitch.TraceWarning, message);
-            Trace.WriteLineIf(Logger.traceSwitch.TraceWarning, "");
+                Console.SetCursorPosition(warn.Length + 1, Console.CursorTop - 1);
+                Trace.WriteIf(Logger.traceSwitch.TraceWarning, message);
+                Trace.WriteLineIf(Logger.traceSwitch.TraceWarning, "");
+            }
+            catch (Exception)
+            {
+            }
         }
 
         public static void LogError(Exception e)
