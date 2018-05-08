@@ -1,2 +1,17 @@
 language: csharp
 solution: Slic3rPostProcessing.sln
+
+before_deploy:
+    - git config --local user.name "foreachthing"
+    - git config --local user.email "mrp@gmx.ch"
+    - git tag "$(date +'%Y%m%d%H%M%S')-$(git log --format=%h -1)"
+
+deploy:
+  provider: releases
+  file: "Slic3rPostProcessing.exe"
+  skip_cleanup: true
+  on:
+    tags: true
+
+env:
+  - secure: 1j01pcoJEXBMIG/JvzVQSP6EqkDgwXIqbaTsiVTpxYw4mKVRdjsbz665+w1cU39txwNYQBwmgZw/e3UiPeuNeRAmbxmHDF5NKGIecVDOC/2SWmL+FYQKl5NYMOH6+sxz7GjLz6Q8Cmn9sE2sY5u4WFqC9rhxukU7GvE//adq7o/DXWmnXcwMJMZp7U4OCQJYyhjHDzXm8z1r6nMH8DPfnqhvMzwCBLykofjFLvEhwG27KD8ZfoAXPrrw6yqMtO0NfW0q5KbIrQSF6hefW+jC+NflxYXfTHyCphEfo+iXK7uXaGoVx6gZZwfXAa/lIPtgiRBDFKUusUAzWjapZsqY3EKOgC5QmrYG/26Sndr1d+bHF9bNbArlynwT/q0Xz/mHFEqU1FUUzLLN/9AGCV8iUiSkOnteKoOjj09LWB4IeMAje1cd+vsVWKFDCHkHBPlj7mbFggaUW1cbLZwoQmj+kjOKibOnr4HtEABTgyIKpQFlF7gRTxF1Q+zOVJfABKa6fLx95oXGdBEY8OEXHVLNwtwi6ymF8GgWbiE8eGsHmGBnOcN4Fhugc8YOXmsoCZw+1nBYj+DzfO57pHVmHqu6g2xlryVE4WAAHZHp5HVGvD5K8n7onUewWjR/WT4NlZZphsZisD6AOFKpgHwYLSnljtus27dKQ2njf0Q8L8wSbAc=
