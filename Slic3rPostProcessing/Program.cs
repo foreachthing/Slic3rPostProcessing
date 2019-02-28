@@ -20,6 +20,11 @@ namespace Slic3rPostProcessing
         public static short insertedSoftSupportSegment { get; set; }
         public static short insertedPerimeterSegment { get; set; }
 
+        private static char chrPad = '\u2588'; //  '█';
+        private static char chrSPad = '\u2591'; // '░';
+
+        private static char chrLCDProgress = Convert.ToChar("o");
+
         public static int ConsoleWidth { get; set; }
 
         public static string strTimeformat = "yyMMdd-HHmmss";
@@ -54,13 +59,17 @@ namespace Slic3rPostProcessing
             bool show_help = false;
 
             int verbosity = 3;
-            double stopbeadheater = 0d;
+
+            double stopbedheater = 0d;
             string strINputFile = null;
             string strOUTputFile = null;
+
+            string intSetCounter = "notanumber";
 
             bool booTimestamp = false;
             bool booCounter = true;
             bool booRemoveConfig = false;
+            bool booProgressbar = false;
             bool booResetCounter = false;
 
             ////// / / / / / / / / / / / / /
@@ -70,8 +79,7 @@ namespace Slic3rPostProcessing
             ConsoleWidth = Logger.GetConsoleWidth();
 
             OptionSet os = new OptionSet();
-            os.Add("i|input=", "The {INPUT} to process. " + Environment.NewLine + "If file extention is omitted, .gcode will be assumed.",
-                i => strINputFile = i);
+            os.Add("i|input=", "The {INPUT} to process. " + Environment.NewLine + "If file extention is omitted, .gcode will be assumed.", i => strINputFile = i);
 
             os.Add("o|output=", "The {OUTPUT} filename. " + Environment.NewLine + "Optional. {INPUT} will get overwritten if {OUTPUT} is not specified. File extension will be added if omitted.",
                 o => strOUTputFile = o);
@@ -79,11 +87,13 @@ namespace Slic3rPostProcessing
             os.Add("c|counter=", "Adds an export-counter to the FRONT of the filename ({+ or -}). Default: -c+ (true)" + Environment.NewLine + "Next counter: " + (intExportCounter).ToString("D" + intSizeOfCounter) + Environment.NewLine + "(If the timestamp is set to true as well, only the counter will be added.)",
                 c => booCounter = c != null);
 
+            os.Add("p|progress=", "Display Progressbar ({+ or -}) instead of 'Layer 12/30'." + Environment.NewLine + "Default: -p- (false).", p => booProgressbar = p != null);
+
             os.Add("r|removeconfig=", "Removes Configuration at end of file ({+ or -}). Everything after \"END FOOTER\" will be removed." + Environment.NewLine + "Default: -r- (false).",
                 r => booRemoveConfig = r != null);
 
             os.Add("s|stopbedheater=", "Stops heating of the bed after this height in millimeter ({0-inf}). Default = 0 => off",
-                (double s) => { if (s >= 0) stopbeadheater = s; });
+                (double s) => { if (s >= 0) stopbedheater = s; });
 
             os.Add("t|timestamp=", "Adds a timestamp to the END of the filename ({+ or -})." + Environment.NewLine + "Default: -t- (false)",
                 t => booTimestamp = t != null);
@@ -94,8 +104,8 @@ namespace Slic3rPostProcessing
             os.Add("v|verbosity=", "Debug message verbosity ({0-4}). Default: " + verbosity + ". " + Environment.NewLine + "0 = Off " + Environment.NewLine + "1 = Error " + Environment.NewLine + "2 = Warning " + Environment.NewLine + "3 = Info " + Environment.NewLine + "4 = Verbose (this will output EVERY line of GCode!)",
                 (int v) => { if (v >= 0 & v < 5) verbosity = v; });
 
-            os.Add("x|resetcounter", "Reset export-counter to zero and exit (3).",
-              x => booResetCounter = x != null);
+            os.Add("x|resetcounter", "Reset export-counter to zero and exit (3).", x => booResetCounter = x != null);
+            os.Add("xs|setcounter=", "Set export-counter to non-zero and exit (3).", xs => intSetCounter = xs.ToString());
 
             os.Add("h|help", "Show this message and exit (2). Nothing will be done.",
                 h => show_help = h != null);
@@ -142,6 +152,18 @@ namespace Slic3rPostProcessing
                 return 3;
             }
 
+            int intSetCounterTest = -1;
+            if (int.TryParse(intSetCounter, out intSetCounterTest))
+            {
+                if (intSetCounterTest > 0)
+                {
+                    inisettings.WriteValue("ExportCounter", "PostProcessing", intSetCounter);
+                    inisettings.Save();
+                }
+                Environment.Exit(3);
+                return 3;
+            }
+
             if (strINputFile == null)
             {
                 // Console.WriteLine("I need an argument; your's not good!");
@@ -164,7 +186,7 @@ namespace Slic3rPostProcessing
                     }
 #else
                     {
-                        System.Threading.Thread.Sleep(500);
+                        System.Threading.Thread.Sleep(2000);
                         Environment.Exit(1);
                     }
 #endif
@@ -267,7 +289,7 @@ namespace Slic3rPostProcessing
                     {
                         //
                         // Stop Bed Heater
-                        if (stopbeadheater > 0)
+                        if (stopbedheater > 0)
                         {
                             Match matchlayerheight = Regex.Match(l, @"^(?:G1)\s(Z(\d+(\.\d+)?|\.\d+?))", RegexOptions.IgnoreCase);
 
@@ -276,13 +298,13 @@ namespace Slic3rPostProcessing
                                 currentlayerheight = Convert.ToDouble(matchlayerheight.Groups[2].Value);
                                 Logger.LogVerbose("Current Layer Height: " + currentlayerheight + " mm");
 
-                                if (currentlayerheight >= stopbeadheater & (bedheaterstopped == false))
+                                if (currentlayerheight >= stopbedheater & (bedheaterstopped == false))
                                 {
                                     sb.AppendLine("M140 S0; Stop Bed Heater on Layer Height " + currentlayerheight + " mm");
                                     sb.AppendLine("M117 Stopping Bed Heater.");
 
                                     bedheaterstopped = true;
-                                    stopbeadheater = currentlayerheight;
+                                    stopbedheater = currentlayerheight;
                                 }
                             }
                         }
@@ -320,7 +342,28 @@ namespace Slic3rPostProcessing
                         if (l.StartsWith("M117"))
                         {
                             iLayer++;
-                            sb.AppendLine("M117 Layer " + iLayer + "/" + iLayerCount);
+
+                            if (booProgressbar)
+                            {
+                                int maxchar = 18;
+                                char chrpbar = chrLCDProgress;
+                                int ipad = (int)(((double)iLayer / iLayerCount) * maxchar);
+
+                                if (ipad == 0)
+                                {
+                                    ipad = 1;
+                                    chrpbar = Convert.ToChar(".");
+                                }
+
+                                string pbar = "M117 [" + "".PadRight(ipad, chrpbar) + "".PadRight(maxchar - ipad, Convert.ToChar(" ")) + "]";
+
+                                sb.AppendLine(pbar);
+                            }
+                            else
+                            {
+                                sb.AppendLine("M117 Layer " + iLayer + "/" + iLayerCount);
+                            }
+
                             continue;
                         }
 
@@ -491,7 +534,7 @@ namespace Slic3rPostProcessing
                         }
                     }
 
-                    if (stopbeadheater > 0) { Logger.LogInfo("Bed Heater disabled after height " + stopbeadheater + " mm."); }
+                    if (stopbedheater > 0) { Logger.LogInfo("Bed Heater disabled after height " + stopbedheater + " mm."); }
                     if (booRemoveConfig) { Logger.LogInfo("Configuration/Settings have been removed from GCode."); }
 
                     intExportCounter++;
@@ -587,8 +630,6 @@ namespace Slic3rPostProcessing
         private static void Progressbar(double Progress, bool ReportAsPercentage = true, int Value = -1)
         {
             int conswidth = ConsoleWidth - 2;
-            char pad = '\u2588'; //  '█';
-            char spad = '\u2591'; // '░';
             string prog = "";
             string progformat = "";
             double newprog = (Value != -1) ? Value : Progress / 100;
@@ -603,8 +644,8 @@ namespace Slic3rPostProcessing
 
             string mynewfunkyprogressbar =
                 progformat +
-                prog.PadLeft(progr, pad) +
-                prog.PadLeft(conswidth - progr, spad);
+                prog.PadLeft(progr, chrPad) +
+                prog.PadLeft(conswidth - progr, chrSPad);
 
             Logger.LogInfoOverwrite(mynewfunkyprogressbar);
         }
