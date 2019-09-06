@@ -629,7 +629,7 @@ namespace Slic3rPostProcessing
 
         private static void Progressbar(double Progress, bool ReportAsPercentage = true, int Value = -1)
         {
-            int conswidth = ConsoleWidth - 2;
+            int conswidth = ConsoleWidth - 5;
             string prog = "";
             string progformat = "";
             double newprog = (Value != -1) ? Value : Progress / 100;
