@@ -1,14 +1,14 @@
 # Slic3r-Post-Processing
 
 ## What it does
-Post processing for [Slic3r](http://slic3r.org) to color the toolpaths to view in [CraftWare](https://craftunique.com/craftware).
+Post processing for [Slic3r](http://slic3r.org) and [PrusaSlicer](https://www.prusa3d.com/prusaslicer/) to color the toolpaths to be viewed in [CraftWare](https://craftunique.com/craftware).
 This tool basically looks for `; skirt` and collects this block _(skirts, perimeter, softsupport and support are supported)_ and writes `;segType:Skirt` before. Then, it removes the verbose output to reduce the file size.
 
 * Adds a number prefix to the filename (no more overwriting gcode).
 * Changes the start code to be more like Cura.
   * XYZ-move to start point after oozing.
-* Added ability to stop Bed Heater at Height x mm. See help for usage.
-* and some more ...
+* Added ability to stop Bed-Heater at Height x mm. See help for usage.
+* and lots more ...
 
 
 ### Download
@@ -20,12 +20,12 @@ This tool basically looks for `; skirt` and collects this block _(skirts, perime
 * In Slic3r -> Printer -> Custom G-Code; add this:
   * Start G-Code:
     * `; START Header`
-	* `; ... your header here`
-	* `; END Header`
+    * `; ... your header here`
+    * `; END Header`
   * End G-Code:
     * `; START Footer`
-	* `; ... your footer here`
-	* `; END Footer`
+    * `; ... your footer here`
+    * `; END Footer`
   * Before layer change G-Code: `;layer:[layer_num]; \n M117 Layer [layer_num];`
   
 ![Print Settings](https://github.com/foreachthing/Slic3rPostProcessing/blob/master/misc/slic3r_print_settings.png)
@@ -45,7 +45,73 @@ Examples:
 ### Console
 Current console:
 
-![console](https://github.com/foreachthing/Slic3rPostProcessing/blob/master/misc/console.png)
+<!-- ![console](https://github.com/foreachthing/Slic3rPostProcessing/blob/master/misc/console.png) -->
+[comment]: <> (![console](https://github.com/foreachthing/Slic3rPostProcessing/blob/master/misc/console.png))
+
+
+```
+
+                   This program is compatible with Slic3r (standalone use see below) and PrusaSlicer.                   
+
+  Print Settings -> Output options
+    * Enable Verbose G-Code (!)
+    * Copy and paste this full filename to Post-Processing Scripts:
+      "C:\Users\fuerer_g\OneDrive\dev\foreachthing\Slic3rPostProcessing\Slic3rPostProcessing\bin\Release\Slic3rPostProcessing.exe"
+
+  Printer Settings:
+    * Add '; START Header' and '; END Header' to your Start GCode.
+    * Add '; START Footer' and '; END Footer' to your End GCode.
+
+                                     Standalone use: Slic3rPostProcessing [OPTIONS]                                     
+
+Options:
+  -i, --input=INPUT          The INPUT to process.
+                               If file extention is omitted, .gcode will be
+                               assumed.
+  -o, --output=OUTPUT        The OUTPUT filename.
+                               Optional. INPUT will get overwritten if OUTPUT
+                               is not specified. File extension will be added
+                               if omitted. If the counter is added, the INPUT
+                               file will not be changed.
+  -c, --counter=+ or -       Adds an export-counter to the FRONT of the
+                               filename (+ or -). Default: -c+ (true)
+                               Next counter: 000004
+                               (If the timestamp is set to true as well, only
+                               the counter will be added.)
+  -p, --progress=+ or -      Display Progressbar (+ or -) on printer's LCD
+                               instead of 'Layer 12/30'.
+                               Default: -p- (false).
+      --pw, --progresswidth=VALUE
+                             Width (or number of Chars in Progressbar) on
+                               printer's LCD. Allow two more characters for
+                               opening and closing brackets.
+                               Default: 18.
+  -r, --removeconfig=+ or -  Removes Configuration at end of file (+ or -).
+                               Everything after "END FOOTER" will be removed.
+                               Default: -r- (false).
+  -s, --stopbedheater=0-inf  Stops heating of the bed after this height in
+                               millimeter (0-inf). Default = 0 => off
+  -t, --timestamp=+ or -     Adds a timestamp to the END of the filename (+ or
+                               -).
+                               Default: -t- (false)
+      --tf, --timeformat=FORMAT
+                             FORMAT of the timestamp. Default: "yyMMdd-HHmmss"
+                               Right now: 200812-152527
+  -v, --verbosity=0-4        Debug message verbosity (0-4). Default: 3.
+                               0 = Off
+                               1 = Error
+                               2 = Warning
+                               3 = Info
+                               4 = Verbose (this will output EVERY line of
+                               GCode!)
+  -x, --resetcounter         Reset export-counter to zero and exit (3).
+      --xs, --setcounter=VALUE
+                             Set export-counter to non-zero and exit (3).
+  -h, --help                 Show this message and exit (2). Nothing will be
+                               done.
+
+```
+
 
 
 
