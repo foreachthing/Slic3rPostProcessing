@@ -46,7 +46,6 @@ Examples:
 Current console:
 
 <!-- ![console](https://github.com/foreachthing/Slic3rPostProcessing/blob/master/misc/console.png) -->
-[comment]: <> (![console](https://github.com/foreachthing/Slic3rPostProcessing/blob/master/misc/console.png))
 
 
 ```
