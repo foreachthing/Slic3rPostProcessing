@@ -6,6 +6,8 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Diagnostics;
 using System.Globalization;
+using System.Configuration;
+using System.Collections.Specialized;
 using Mono.Options;
 
 namespace Slic3rPostProcessing
