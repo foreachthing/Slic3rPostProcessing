@@ -55,7 +55,7 @@ Current console:
   Print Settings -> Output options
     * Enable Verbose G-Code (!)
     * Copy and paste this full filename to Post-Processing Scripts:
-      "C:\Slic3rPostProcessing\Slic3rPostProcessing.exe"
+      "C:\temp\Slic3rPostProcessing.exe"
 
   Printer Settings:
     * Add '; START Header' and '; END Header' to your Start GCode.
