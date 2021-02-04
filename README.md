@@ -1,13 +1,13 @@
 # Slic3r-Post-Processing
 
 ## What it does
-Post processing for [Slic3r](http://slic3r.org) and [PrusaSlicer](https://www.prusa3d.com/prusaslicer/) to color the toolpaths to be viewed in [CraftWare](https://craftunique.com/craftware).
-This tool basically looks for `; skirt` and collects this block _(skirts, perimeter, softsupport and support are supported)_ and writes `;segType:Skirt` before. Then, it removes the verbose output to reduce the file size.
+Post processing for [Slic3r](http://slic3r.org) and [PrusaSlicer](https://www.prusa3d.com/prusaslicer/):
 
 * Adds a number prefix to the filename (no more overwriting gcode).
 * Changes the start code to be more like Cura.
   * XYZ-move to start point after oozing.
 * Added ability to stop Bed-Heater at Height x mm. See help for usage.
+* Color the toolpaths to be viewed in [CraftWare](https://craftunique.com/craftware).
 * and lots more ...
 
 
