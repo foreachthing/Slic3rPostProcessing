@@ -75,7 +75,7 @@ try:
             if B_EDITED_LINE and B_SKIP_ALL == False:
                 # find:   G1 X85.745 Y76.083 F7200.000; fist "point" on Z-HEIGHT and add Z-HEIGHT
                 # result: G1 X85.745 Y76.083 Z0.2 F7200 ; added by PostProcessing Script
-                mc = re.search(r'^((G1\sX-?\d+\.?\d+\sY-?\d+\.?\d+)\s.*(F\d*))', strcurrentline, flags=re.IGNORECASE)
+                mc = re.search(r'^((G1\sX-?\d+\.?\d+\sY-?\d+\.?\d+)\s.*(F\d+\.?\d+))', strcurrentline, flags=re.IGNORECASE)
                 if mc:
                     ln = mc.group(2) + ' Z' + str(FIRST_LAYER_HEIGHT) + ' ' + mc.group(3) + ' ; added by PostProcessing Script\n'
                     strline = ln
