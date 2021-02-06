@@ -16,6 +16,7 @@ In /[SPP-Python](https://github.com/foreachthing/Slic3rPostProcessing/tree/maste
 1. Move to the first entry point on XYZ simultaneously.
     - Before it was like this: heat up, ooze, move to first layer height (Z), move to first start point (XY).
     - Now: heat up, ooze, move to first start point (XYZ).
+
 The Python version does not require the verbose mode enabled or any other changes to the Start-, End-, or Layer-code.
 
 ### Download
