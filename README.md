@@ -10,6 +10,13 @@ Post processing for [Slic3r](http://slic3r.org) and [PrusaSlicer](https://www.pr
 * Color the toolpaths to be viewed in [CraftWare](https://craftunique.com/craftware).
 * and lots more ...
 
+### New:
+In /[SPP-Python](https://github.com/foreachthing/Slic3rPostProcessing/tree/master/SPP-Python)/ is the Python-version of the "Cura"-move:
+1. Heat up, down nozzle and ooze at your discretion.
+1. Move to the first entry point on XYZ simultaneously.
+    - Before it was like this: heat up, ooze, move to first layer height (Z), move to first start point (XY).
+    - Now: heat up, ooze, move to first start point (XYZ).
+The Python version does not require the verbose mode.
 
 ### Download
 [Latest release](https://github.com/foreachthing/Slic3rPostProcessing/releases) can be found here.
