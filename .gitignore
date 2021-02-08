@@ -6,6 +6,11 @@
 *.user
 *.userosscache
 *.sln.docstates
+*.gcode
+*.gcode.bak
+
+# vscode settings
+.vscode/
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs

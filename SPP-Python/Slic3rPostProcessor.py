@@ -45,39 +45,40 @@ FIRST_LAYER_HEIGHT = 0
 B_FOUND_Z = False
 B_EDITED_LINE = False
 B_SKIP_ALL = False
+B_SKIP_REMOVED = False
 WRITEFILE = None
+RGX_FIND_NUMBER = r"-?\d*\.?\d+"
 
 try:
     with open(sourcefile, "w") as WRITEFILE:
         for lIndex in range(len(lines)):
             strline = lines[lIndex]
-            strcurrentline = strline
 
-            if FIRST_LAYER_HEIGHT == 0 and B_SKIP_ALL == False:
-                if strcurrentline and B_FOUND_Z == False:
-                    # Find: ;HEIGHT:0.2 and store first layer height value
-                    m = re.search(r"^;HEIGHT:(.*)", strcurrentline, flags=re.IGNORECASE)
-                    if m:
-                        # Found ;HEIGHT:
-                        FIRST_LAYER_HEIGHT = m.group(1)
-                        B_FOUND_Z = True
+            if strline and B_FOUND_Z == False and B_SKIP_ALL == False:
+                # Find: ;HEIGHT:0.2 and store first layer height value
+                m = re.search(r"^;HEIGHT:(.*)", strline, flags=re.IGNORECASE)
+                if m:
+                    # Found ;HEIGHT:
+                    FIRST_LAYER_HEIGHT = m.group(1)
+                    B_FOUND_Z = True
 
             else:
-                if strcurrentline and B_FOUND_Z and B_SKIP_ALL == False:
+                if strline and B_FOUND_Z and B_SKIP_REMOVED == False and B_SKIP_ALL == False:
                     # find:   G1 Z-HEIGHT F...
                     # result: ; G1 Z0.200 F7200.000 ; REMOVED by PostProcessing Script:
-                    m = re.search(rf'^(?:G1)\s(?:Z{FIRST_LAYER_HEIGHT}.*)\s(?:F-?(?:0|[1-9]\d*)(?:\.\d+)?)(?:.*)$', strcurrentline, flags=re.IGNORECASE)
+                    m = re.search(rf'^(?:G1)\s(?:Z{FIRST_LAYER_HEIGHT}.*)\s(?:F{RGX_FIND_NUMBER}?)(?:.*)$', strline, flags=re.IGNORECASE)
                     if m:
                         strline = re.sub(r'\n', '', strline, flags=re.IGNORECASE)
                         strline = '; ' + strline + ' ; REMOVED by PostProcessing Script:\n'
                         B_EDITED_LINE = True
+                        B_SKIP_REMOVED = True
 
             if B_EDITED_LINE and B_SKIP_ALL == False:
                 # find:   G1 X85.745 Y76.083 F7200.000; fist "point" on Z-HEIGHT and add Z-HEIGHT
                 # result: G1 X85.745 Y76.083 Z0.2 F7200 ; added by PostProcessing Script
-                mc = re.search(r'^((G1\sX-?\d+\.?\d+\sY-?\d+\.?\d+)\s.*(F\d+\.?\d+))', strcurrentline, flags=re.IGNORECASE)
+                mc = re.search(rf'^((G1\sX{RGX_FIND_NUMBER}\sY{RGX_FIND_NUMBER})\s.*(F{RGX_FIND_NUMBER}))', strline, flags=re.IGNORECASE)
                 if mc:
-                    ln = mc.group(2) + ' Z' + str(FIRST_LAYER_HEIGHT) + ' ' + mc.group(3) + ' ; added by PostProcessing Script\n'
+                    ln = mc.group(2) + ' Z' + str(FIRST_LAYER_HEIGHT) + ' ' + mc.group(3) + ' ; added Z' + str(FIRST_LAYER_HEIGHT) + ' by PostProcessing Script\n'
                     strline = ln
                     B_EDITED_LINE = False
                     B_SKIP_ALL = True

@@ -16,10 +16,18 @@ In /[SPP-Python](https://github.com/foreachthing/Slic3rPostProcessing/tree/maste
 1. Move to the first entry point on XYZ simultaneously.
     - Before it was like this: heat up, ooze, move to first layer height (Z), move to first start point (XY).
     - Now: heat up, ooze, move to first start point (XYZ).
-
 The Python version does not require the verbose mode enabled or any other changes to the Start-, End-, or Layer-code.
 
-### Download
+Only requirement: the gcode has to have `;HEIGHT:[layer_z]` after `G92 E0`, or after Header G-Code. If you use a recent version of PrusaSlicer, you don't have to do anything. With Slic3r you'd have to add `;HEIGHT:[layer_z]` to the "Before layer change G-Code" field.
+
+### Installation
+Add this line to your "Print Settings" under "Output options" to the "Post-Processing scrips" field:
+`<path to your python installation>\python.exe <path to script>\Slic3rPostProcessor.py;`
+
+If you have one or more script active, add this to the correct spot. Scripts will be processed from top to bottom.
+
+
+## Download
 [Latest release](https://github.com/foreachthing/Slic3rPostProcessing/releases) can be found here.
 
 ## to use in Slic3r
@@ -39,7 +47,6 @@ The Python version does not require the verbose mode enabled or any other change
 ![Print Settings](https://github.com/foreachthing/Slic3rPostProcessing/blob/master/misc/slic3r_print_settings.png)
 
 
-
 ## Standalone:
 Pass your GCode file, from Slic3r, to this exe. Either provide an output filename or not. If no output filename is given, then the original file will be overwritten.
 Examples:
@@ -48,7 +55,6 @@ Examples:
 
 - To stop the bed heater after 2.5 mm:
   `Slic3rPostProcessing.exe -i "c:\temp\myfile.gcode" -o "c:\temp\mynewfile.gcode" -s2.5`
-
 
 ### Console
 Current console:
@@ -118,8 +124,6 @@ Options:
                                done.
 
 ```
-
-
 
 
 ## GCode reviewed in CraftWare:
