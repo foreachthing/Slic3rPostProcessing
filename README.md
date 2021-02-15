@@ -10,7 +10,7 @@ Post processing for [Slic3r](http://slic3r.org) and [PrusaSlicer](https://www.pr
 * Color the toolpaths to be viewed in [CraftWare](https://craftunique.com/craftware).
 * and lots more ...
 
-### New:
+### All-New python script:
 In /[SPP-Python](https://github.com/foreachthing/Slic3rPostProcessing/tree/master/SPP-Python)/ is the Python-version of the "Cura"-move:
 1. Heat up, down nozzle and ooze at your discretion.
 1. Move to the first entry point on XYZ simultaneously.
@@ -20,9 +20,15 @@ The Python version does not require the verbose mode enabled or any other change
 
 Only requirement: the gcode has to have `;HEIGHT:[layer_z]` after `G92 E0`, or after Header G-Code. If you use a recent version of PrusaSlicer, you don't have to do anything. With Slic3r you'd have to add `;HEIGHT:[layer_z]` to the "Before layer change G-Code" field.
 
+### Parameters for the python version
+1. Optional: `--xy` will move to X and Y first, then drops on Z (eases-in a bit: full speed to "first layer height" * 10, then at half speed to first layer height).
+1. GCode file name (will be provided by the Slicer)
+
+
 ### Installation
 Add this line to your "Print Settings" under "Output options" to the "Post-Processing scrips" field:
-`<path to your python installation>\python.exe <path to script>\Slic3rPostProcessor.py;`
+`<path to your python installation>\python.exe <path to script>\Slic3rPostProcessor.py;`, 
+or `<path to your python installation>\python.exe <path to script>\Slic3rPostProcessor.py --xy;` (see above).
 
 If you have one or more script active, add this to the correct spot. Scripts will be processed from top to bottom.
 
