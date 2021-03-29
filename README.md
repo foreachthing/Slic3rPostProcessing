@@ -1,7 +1,7 @@
 # Slic3r-Post-Processing
 
 ## What it does
-Post processing for [Slic3r](http://slic3r.org) and [PrusaSlicer](https://www.prusa3d.com/prusaslicer/):
+Post processing for [Slic3r](http://slic3r.org), [PrusaSlicer](https://www.prusa3d.com/prusaslicer/) and [SuperSlicer](https://github.com/supermerill/SuperSlicer):
 
 * Adds a number prefix to the filename (no more overwriting gcode).
   * **NOTE**: This commit https://github.com/prusa3d/PrusaSlicer/commit/eaf6e0dca7c54ba71056a4bc0fd15450e40b81da broke the prefix number, becaus the way PrusaSlicer is handling the post-processing (1. store gcode in temp-folder, 2. do post-precessing, 3. copy back the changed file). That only works if the filename remains unchanged. The standalone version is not affected. 
