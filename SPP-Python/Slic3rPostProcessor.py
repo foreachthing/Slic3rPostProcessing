@@ -19,7 +19,7 @@
 # http://projects.ttlexceeded.com/3dprinting_prusaslicer_post-processing.html
 
 # got issues?
-# Please complain here: https://github.com/foreachthing/Slic3rPostProcessing/issues
+# Please complain/explain here: https://github.com/foreachthing/Slic3rPostProcessing/issues
 
 import sys
 import re
@@ -85,11 +85,10 @@ def main(args, conf):
     
     sourcefile=args.input_file
     conf = configparser.ConfigParser()
-    conf.read('config.cfg')
+    conf.read('spp_config.cfg')
     
     # file increment + 1
-    fileincrement = conf.getint('DEFAULT', 'FileIncrement', fallback=0)
-    fileincrement += 1
+    fileincrement = conf.getint('DEFAULT', 'FileIncrement', fallback=0) + 1
     
     # Create a backup file
     try:
@@ -261,12 +260,14 @@ def main(args, conf):
                             B_SKIP_ALL = True
                     strline = line
 
+                #
                 # Write line back to file
                 WRITEFILE.write(strline)
 
+        #
         # write settings back
         conf['DEFAULT'] = {'FileIncrement': fileincrement}
-        with open('config.cfg', 'w') as configfile:
+        with open('spp_config.cfg', 'w') as configfile:
             conf.write(configfile)
 
     except Exception as exc:
