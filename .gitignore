@@ -8,6 +8,10 @@
 *.sln.docstates
 *.gcode
 *.gcode.bak
+config.cfg
+*.alpackages
+*.vscode
+*.app
 
 # vscode settings
 .vscode/
