@@ -59,6 +59,10 @@ def argumentparser():
         help='Removes Configuration/Comments at end of file.'\
             '(Default: %(default)s)')
     
+    parser.add_argument('--noback', action='store_true', default=False, \
+        help='Don\'t create a backup file.'\
+        '(Default: %(default)s)')
+    
     grp_progress = parser.add_argument_group('Progress bar settings')
     grp_progress.add_argument('--p', action='store_true', default=False, \
         help='If --p is provided, a progress bar instead of layer number/percentage, '\
@@ -92,7 +96,8 @@ def main(args, conf):
     
     # Create a backup file
     try:
-        copyfile(sourcefile, re.sub(r"\.gcode$", ".gcode.bak", sourcefile, flags=re.IGNORECASE))
+        if args.noback == False:
+            copyfile(sourcefile, re.sub(r"\.gcode$", ".gcode.bak", sourcefile, flags=re.IGNORECASE))
     except OSError as exc:
         print('FileNotFoundError:' + str(exc))
         sys.exit(1)
