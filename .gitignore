@@ -13,6 +13,8 @@ spp_config.cfg
 *.alpackages
 *.vscode
 *.app
+SPP-Python/spp_config.cfg
+SPP-Python/*.py.bak
 
 # vscode settings
 .vscode/
@@ -251,4 +253,3 @@ ModelManifest.xml
 
 # FAKE - F# Make
 .fake/
-SPP-Python/spp_config.cfg
