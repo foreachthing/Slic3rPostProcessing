@@ -28,7 +28,8 @@ Only requirement: the gcode has to have `;HEIGHT:[layer_z]` after `G92 E0`, or a
 1. Optional: `--xy` will move to X and Y first, then drops on Z (eases-in a bit: full speed to 15 times "first layer height", then at half speed to first layer height).
 2. Optional: `--rc` removes slicer configuration at the end of the file.
 3. Optional: `--noback` won't create a backup file if True is passed.
-4. GCode file name (will be provided by the Slicer; _must_ be provided if used as standalone)
+4. Optional: `--filecounter` adds a file counter (prefix) to the output file name. This will not work with PrusaSlicer.
+5. GCode file name (will be provided by the Slicer; _must_ be provided if used as standalone)
 
 
 ### Installation of Python Version
