@@ -25,16 +25,21 @@ import sys
 import re
 import argparse
 import configparser
-from shutil import ReadError, copyfile
-from os import path
+import time
+import ntpath
+from shutil import ReadError, copy2
+from os import path, remove
 from decimal import Decimal
+from datetime import datetime
 
+# datetime object containing current date and time
+NOW = datetime.now()
+DEBUG = True
 
-def getINT(notint):
-    x = float(notint)
-    y = int(x)
-    z = str(y)
-    return z
+def debugprint(s):
+    if DEBUG:
+        print(f"{NOW.strftime('%Y-%m-%d %H:%M:%S')}: {str(s)}")
+        time.sleep(5)
 
 def argumentparser():
     """ ArgumentParser """
@@ -47,32 +52,40 @@ def argumentparser():
             ' right through them - ouch!',
         epilog = 'Result: An Ultimaker 2 (and up) friedly GCode file.')
 
-    parser.add_argument('input_file', metavar='gcode-file', type=str,\
-        help='This is the GCode file to be processed - required.')
+    parser.add_argument('input_file', metavar='gcode-files', type=str, nargs='+',\
+        help='One or more GCode file(s) to be processed - at least one is required.')
 
     parser.add_argument('--xy', action='store_true', default=False, \
-        help='If --xy is provided, the script tells the printer to move to X and Y of first start point, '\
-        'then drop the nozzle to Z at half the speed of XY.\n'\
-        '(Default: %(default)s)')
+        help='If --xy is provided, the script tells the printer to move to '\
+            'X and Y of first start point, then drop the nozzle to Z at half '\
+            'the normal speed. '\
+            '(Default: %(default)s)')
     
     parser.add_argument('--rc', action='store_true', default=False, \
-        help='Removes Configuration/Comments at end of file.'\
+        help='Removes Configuration/Comments at end of file. '\
             '(Default: %(default)s)')
     
     parser.add_argument('--noback', action='store_true', default=False, \
-        help='Don\'t create a backup file.'\
-        '(Default: %(default)s)')
-    
+        help='Don\'t create a backup file, if parameter is passed. '\
+            '(Default: %(default)s)')
+
+    parser.add_argument('--filecounter', action='store_true', default=False, \
+        help='Add a prefix counter, if desired, to the output gcode file. '\
+            'Default counter length is 6 digits (000001-999999_file.gcode). '\
+            'The counter, however, DOES NOT work with PrusaSlicer! '\
+            'It does work with SuperSlicer and Slic3r. '\
+            '(Default: %(default)s)')
+
     grp_progress = parser.add_argument_group('Progress bar settings')
     grp_progress.add_argument('--p', action='store_true', default=False, \
         help='If --p is provided, a progress bar instead of layer number/percentage, '\
-            'will be added to your GCode file and displayed on your printer (M117).\n'\
-                '(Default: %(default)s)')
+            'will be added to your GCode file and displayed on your printer (M117). '\
+            '(Default: %(default)s)')
 
     grp_progress.add_argument('-pwidth', metavar='int', type=int, default=18, \
         help='Define the progress bar length in characters. You might need to '\
-            'adjust the default value. Allow two more chars for brackets.\n'\
-                'Example: [' + 'OOOOO'.ljust(18, '.') + ']. (Default: %(default)d)')
+            'adjust the default value. Allow two more chars for brackets. '\
+            'Example: [' + 'OOOOO'.ljust(18, '.') + ']. (Default: %(default)d)')
 
     try:
         args = parser.parse_args()
@@ -86,47 +99,88 @@ def main(args, conf):
     """
         MAIN
     """
-    
-    sourcefile=args.input_file
     conf = configparser.ConfigParser()
     conf.read('spp_config.cfg')
+    fileincrement = conf.getint('DEFAULT', 'FileIncrement', fallback=0)
     
-    # file increment + 1
-    fileincrement = conf.getint('DEFAULT', 'FileIncrement', fallback=0) + 1
+    for sourcefile in args.input_file:
+        
+        if path.exists(sourcefile):        
+            # file increment + 1
+            fileincrement += 1
+            
+            # Create a backup file, if the user wants it.
+            try:
+                if args.noback == False:
+                    copy2(sourcefile, re.sub(r"\.gcode$", ".gcode.bak", sourcefile, flags=re.IGNORECASE))
+            except OSError as exc:
+                print('FileNotFoundError:' + str(exc))
+                sys.exit(1)
+            
+            debugprint(f"Working on {sourcefile}")
+            process_gcodefile(args, sourcefile)
+            
+            # copy sourcefile to new file with counter
+            # and remove old sourcefile.
+            destfile = sourcefile
+            if args.filecounter:
+                counter = ("{:06d}".format(fileincrement))
+                destfile = ntpath.join(ntpath.dirname(sourcefile)  , counter + '_' + ntpath.basename(sourcefile))         
+                
+                copy2(sourcefile, destfile)
+                remove(sourcefile)
+                sourcefile = destfile
+            
+            #
+            # write settings back
+            conf['DEFAULT'] = {'FileIncrement': fileincrement}
+            with open('spp_config.cfg', 'w') as configfile:
+                conf.write(configfile)
+        
+            debugprint(f'File {sourcefile} done.')
     
-    # Create a backup file
-    try:
-        if args.noback == False:
-            copyfile(sourcefile, re.sub(r"\.gcode$", ".gcode.bak", sourcefile, flags=re.IGNORECASE))
-    except OSError as exc:
-        print('FileNotFoundError:' + str(exc))
-        sys.exit(1)
+    
 
-    # Read the ENTIRE g-code file into memory
+
+def process_gcodefile(args, sourcefile):
+    """
+        MAIN Processing.
+        To do with ever file from command line.
+    """
+
+    # Read the ENTIRE GCode file into memory
     try:
         with open(sourcefile, "r") as readfile:
             lines = readfile.readlines()
     except ReadError as exc:
         print('FileReadError:' + str(exc))
         sys.exit(1)
+        
+    #
+    # Define list of progressbar percentage and characters
+    PROGRESS_LIST = [[0, "."], [.25, ":"], [.5, "+"], [.75, "#"]]
+    # PROGRESS_LIST = [[.5, "o"]]
+    # PROGRESS_LIST = [[0, "0"], [.2, "2"], [.4, "4"], [.6, "6"], [.8, "8"]]
+    #
 
+    RGX_FIND_LAYER = r"^M117 Layer (\d+)"
+    RGX_FIND_NUMBER = r"-?\d*\.?\d+"
     FIRST_LAYER_HEIGHT = 0
     B_FOUND_Z = False
     B_EDITED_LINE = False
     B_SKIP_ALL = False
     B_SKIP_REMOVED = False
     WRITEFILE = None
-    RGX_FIND_LAYER = r"^M117 Layer (\d+)"
-    RGX_FIND_NUMBER = r"-?\d*\.?\d+"
     NUM_OF_LAYERS = 0
     CURR_LAYER = 0
     IS_COMMENT = True
     ICOUNT = 0
     
     try:
-        # Find total layers - search from back of file until first "M117 Layer [num]" is found
-        # Store total number of layers
-        # Also, measure configuration section length
+        # Find total layers - search from back of file until
+        #   first "M117 Layer [num]" is found.
+        # Store total number of layers.
+        # Also, measure configuration section length.
         len_lines = len(lines)
         for lIndex in range(len_lines):
             # start from the back
@@ -138,7 +192,7 @@ def main(args, conf):
                     ICOUNT += 1
                     continue
                 # find first empty line before configuration section
-                elif strline == "\n": # strline.startswith('; avoid_crossing_perimeters'):
+                elif strline == "\n":
                     IS_COMMENT = False
             
             # Find last Layer:            
@@ -153,6 +207,7 @@ def main(args, conf):
 
 
     try:
+            
         with open(sourcefile, "w") as WRITEFILE:
             
             # Store args in vars
@@ -161,16 +216,16 @@ def main(args, conf):
             # Progressbar Character
             pchar = "O"
             
-            #
-            # Define list of progressbar percentage and characters
-            my_list = [[0, "."], [.25, ":"], [.5, "+"], [.75, "#"]]
-            # my_list = [[.5, "o"]]
-            # my_list = [[0, "0"], [.2, "2"], [.4, "4"], [.6, "6"], [.8, "8"]]
-            #
-            
             # remove configuration section, if parameter submitted:
             if args.rc:
                 del lines[len(lines)-ICOUNT:len(lines)]
+                if DEBUG:
+                    debugprint('Removed Config Section; a total of {ICOUNT} lines.')
+
+            if DEBUG:
+                appendstring = 'by PostProcessing Script'
+            else:
+                appendstring = ''
 
             # Loop over GCODE file
             for lIndex in range(len(lines)):
@@ -185,24 +240,24 @@ def main(args, conf):
                     if args.p:
                         # Create progress bar on printer's display
                         # Use a different char every 0.25% progress:
-                        #   Edit my_list to get finer progress
+                        #   Edit PROGRESS_LIST to get finer progress
                         filledLength = int(pwidth * CURR_LAYER // NUM_OF_LAYERS)
                         filledLengthHALF = float(pwidth * CURR_LAYER / NUM_OF_LAYERS - filledLength)
                         strlcase = ""
                         p2width = pwidth
 
                         if CURR_LAYER / NUM_OF_LAYERS < 1:
-                            # check for percentage and insert corresponding char from my_list
-                            for i in range(len(my_list)):                                
-                                if filledLengthHALF >= my_list[i][0]:
-                                    strlcase = my_list[i][1]
+                            # check for percentage and insert corresponding char from PROGRESS_LIST
+                            for i in range(len(PROGRESS_LIST)):                                
+                                if filledLengthHALF >= PROGRESS_LIST[i][0]:
+                                    strlcase = PROGRESS_LIST[i][1]
                                     p2width = pwidth - 1
                                 else:
                                     break
                                                             
                             if CURR_LAYER == 0:
-                                strlcase = "Starting"
-                                p2width = 8
+                                strlcase = "1st Layer"
+                                p2width = 9
                                     
                         # assemble the progressbar (M117)
                         strline = rf'M117 [{pchar * filledLength + strlcase + "." * (p2width - filledLength)}];' + '\n'
@@ -224,7 +279,7 @@ def main(args, conf):
                         # result:  ; G1 Z0.200 F7200.000 ; REMOVED by PostProcessing Script:
                         if re.search(rf'^(?:G1)\s(?:Z{str(FIRST_LAYER_HEIGHT)}.*)\s(?:F{RGX_FIND_NUMBER}?)(?:.*)$', strline, flags=re.IGNORECASE):
                             strline = re.sub(r'\n', '', strline, flags=re.IGNORECASE)
-                            strline = f'; {strline} ; REMOVED by PostProcessing Script:\n'
+                            strline = f'; {strline} ; REMOVED {appendstring}:\n'
                             B_EDITED_LINE = True
                             B_SKIP_REMOVED = True
 
@@ -232,15 +287,14 @@ def main(args, conf):
                     # find:   G1 X85.745 Y76.083 F7200.000; fist "point" on Z-HEIGHT and add Z-HEIGHT
                     # result: G1 X85.745 Y76.083 Z0.2 F7200 ; added by PostProcessing Script
                     line = strline
-                    if args.xy:
-                        mc = re.search(rf'^((G1\sX{RGX_FIND_NUMBER}\sY{RGX_FIND_NUMBER})\s.*(?:F({RGX_FIND_NUMBER})))', strline, flags=re.IGNORECASE)
-                        if mc:
-
-                            # get F-value and format it like a human would
-                            grp3 = format_number(Decimal(mc.group(3)))                            
-
+                    mc = re.search(rf'^((G1\sX{RGX_FIND_NUMBER}\sY{RGX_FIND_NUMBER})\s.*(?:F({RGX_FIND_NUMBER})))', strline, flags=re.IGNORECASE)
+                    if mc:   
+                        # get F-value and format it like a human would
+                        fspeed = format_number(Decimal(mc.group(3)))
+                    
+                        if args.xy:
                             # add first line to move to XY only
-                            line = f'{mc.group(2)} F{str(grp3)}; just XY - added by PostProcessing Script\n'                           
+                            line = f'{mc.group(2)} F{str(fspeed)}; just XY - added {appendstring}\n'                           
 
                             # check height of FIRST_LAYER_HEIGHT
                             # to make ease-in a bit safer
@@ -249,17 +303,16 @@ def main(args, conf):
                             # Then ease-in a bit ... this always gave me a heart attack!
                             #   So, depending on first layer height, drop to 15 times 
                             #   first layer height in mm (this is hardcoded above),                         
-                            line = f'{line}G1 Z{str(flh)} F{str(grp3)}; Then Z{str(flh)} at normal speed - added by PostProcessing Script\n'
+                            line = f'{line}G1 Z{str(flh)} F{str(fspeed)}; Then Z{str(flh)} at normal speed - added {appendstring}\n'
 
                             #   then do the final Z-move at half the speed as before.
-                            line = f'{line}G1 Z{str(FIRST_LAYER_HEIGHT)} F{str(format_number(float(grp3)/2))}; Then to firt layer height at half the speed - added by PostProcessing Script\n'
+                            line = f'{line}G1 Z{str(FIRST_LAYER_HEIGHT)} F{str(format_number(float(fspeed)/2))}; Then to first layer height at half the speed - added {appendstring}\n'
 
                             B_EDITED_LINE = False
                             B_SKIP_ALL = True
-                    else:
-                        mc = re.search(rf'^((G1\sX{RGX_FIND_NUMBER}\sY{RGX_FIND_NUMBER})\s.*(F{RGX_FIND_NUMBER}))', strline, flags=re.IGNORECASE)
-                        if mc:                           
-                            line = f'{mc.group(2)} Z{str(FIRST_LAYER_HEIGHT)} F{str(grp3)} ; added Z {str(FIRST_LAYER_HEIGHT)} by PostProcessing Script\n'
+
+                        else:
+                            line = f'{mc.group(2)} Z{str(FIRST_LAYER_HEIGHT)} F{str(fspeed)} ; added Z {str(FIRST_LAYER_HEIGHT)} {appendstring}\n'
 
                             B_EDITED_LINE = False
                             B_SKIP_ALL = True
@@ -269,12 +322,6 @@ def main(args, conf):
                 # Write line back to file
                 WRITEFILE.write(strline)
 
-        #
-        # write settings back
-        conf['DEFAULT'] = {'FileIncrement': fileincrement}
-        with open('spp_config.cfg', 'w') as configfile:
-            conf.write(configfile)
-
     except Exception as exc:
         print("Oops! Something went wrong. " + str(exc))
         sys.exit(1)
@@ -282,10 +329,12 @@ def main(args, conf):
     finally:
         WRITEFILE.close()
         readfile.close()
-        print(f'File {sourcefile} done.')
 
 
 def format_number(num):
+    """
+        https://stackoverflow.com/a/5808014/827526
+    """
     try:
         dec = Decimal(num)
     except:
