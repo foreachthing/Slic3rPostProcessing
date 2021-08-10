@@ -34,12 +34,17 @@ from datetime import datetime
 
 # datetime object containing current date and time
 NOW = datetime.now()
-DEBUG = True
+DEBUG = False
+
+# Config file full path; where _THIS_ file is
+config_file = f'{path.dirname(path.abspath(__file__))}\spp_config.cfg'
+
 
 def debugprint(s):
     if DEBUG:
         print(f"{NOW.strftime('%Y-%m-%d %H:%M:%S')}: {str(s)}")
         time.sleep(5)
+
 
 def argumentparser():
     """ ArgumentParser """
@@ -62,7 +67,11 @@ def argumentparser():
             '(Default: %(default)s)')
     
     parser.add_argument('--rc', action='store_true', default=False, \
-        help='Removes Configuration/Comments at end of file. '\
+        help='Removes Configuration at end of file. '\
+            '(Default: %(default)s)')
+            
+    parser.add_argument('--rk', action='store_true', default=False, \
+        help='Removes comments from file, except Configuration and lines starting with comments. '\
             '(Default: %(default)s)')
     
     parser.add_argument('--noback', action='store_true', default=False, \
@@ -99,9 +108,15 @@ def main(args, conf):
     """
         MAIN
     """
+    
+    # check if config file exists; else create it with default 0
     conf = configparser.ConfigParser()
-    conf.read('spp_config.cfg')
-    fileincrement = conf.getint('DEFAULT', 'FileIncrement', fallback=0)
+    if not path.exists(config_file):
+        conf['DEFAULT'] = {'FileIncrement': 0}
+        write_file(conf)
+    else:
+        conf.read(config_file)
+        fileincrement = conf.getint('DEFAULT', 'FileIncrement', fallback=0)
     
     for sourcefile in args.input_file:
         
@@ -134,12 +149,9 @@ def main(args, conf):
             #
             # write settings back
             conf['DEFAULT'] = {'FileIncrement': fileincrement}
-            with open('spp_config.cfg', 'w') as configfile:
-                conf.write(configfile)
+            write_file(conf)
         
             debugprint(f'File {sourcefile} done.')
-    
-    
 
 
 def process_gcodefile(args, sourcefile):
@@ -158,9 +170,9 @@ def process_gcodefile(args, sourcefile):
         
     #
     # Define list of progressbar percentage and characters
-    PROGRESS_LIST = [[0, "."], [.25, ":"], [.5, "+"], [.75, "#"]]
-    # PROGRESS_LIST = [[.5, "o"]]
-    # PROGRESS_LIST = [[0, "0"], [.2, "2"], [.4, "4"], [.6, "6"], [.8, "8"]]
+    progress_list = [[0, "."], [.25, ":"], [.5, "+"], [.75, "#"]]
+    # progress_list = [[.5, "o"]]
+    # progress_list = [[0, "0"], [.2, "2"], [.4, "4"], [.6, "6"], [.8, "8"]]
     #
 
     RGX_FIND_LAYER = r"^M117 Layer (\d+)"
@@ -170,6 +182,7 @@ def process_gcodefile(args, sourcefile):
     B_EDITED_LINE = False
     B_SKIP_ALL = False
     B_SKIP_REMOVED = False
+    B_START_REMOVE_COMMENTS = False
     WRITEFILE = None
     NUM_OF_LAYERS = 0
     CURR_LAYER = 0
@@ -207,17 +220,20 @@ def process_gcodefile(args, sourcefile):
 
 
     try:
-            
         with open(sourcefile, "w") as WRITEFILE:
             
-            # Store args in vars
+            # Store args in vars - don't know why...
             pwidth = int(args.pwidth)
+            argsxy = args.xy
+            argsremoveconfig = args.rc
+            argprogress = args.p
+            argsremovecomments = args.rk
             
             # Progressbar Character
             pchar = "O"
             
             # remove configuration section, if parameter submitted:
-            if args.rc:
+            if argsremoveconfig:
                 del lines[len(lines)-ICOUNT:len(lines)]
                 if DEBUG:
                     debugprint('Removed Config Section; a total of {ICOUNT} lines.')
@@ -227,9 +243,14 @@ def process_gcodefile(args, sourcefile):
             else:
                 appendstring = ''
 
+            i_current_line = 0
+            
             # Loop over GCODE file
             for lIndex in range(len(lines)):
                 strline = lines[lIndex]
+                
+                i_current_line += 1
+                i_line_after_edit = 0
                 
                 #
                 # PROGRESS-BAR in M117:
@@ -237,20 +258,20 @@ def process_gcodefile(args, sourcefile):
                 if rgxm117:
                     CURR_LAYER = int(rgxm117.group(1))
                                         
-                    if args.p:
+                    if argprogress:
                         # Create progress bar on printer's display
                         # Use a different char every 0.25% progress:
-                        #   Edit PROGRESS_LIST to get finer progress
+                        #   Edit progress_list to get finer progress
                         filledLength = int(pwidth * CURR_LAYER // NUM_OF_LAYERS)
                         filledLengthHALF = float(pwidth * CURR_LAYER / NUM_OF_LAYERS - filledLength)
                         strlcase = ""
                         p2width = pwidth
 
                         if CURR_LAYER / NUM_OF_LAYERS < 1:
-                            # check for percentage and insert corresponding char from PROGRESS_LIST
-                            for i in range(len(PROGRESS_LIST)):                                
-                                if filledLengthHALF >= PROGRESS_LIST[i][0]:
-                                    strlcase = PROGRESS_LIST[i][1]
+                            # check for percentage and insert corresponding char from progress_list
+                            for i in range(len(progress_list)):                                
+                                if filledLengthHALF >= progress_list[i][0]:
+                                    strlcase = progress_list[i][1]
                                     p2width = pwidth - 1
                                 else:
                                     break
@@ -279,7 +300,11 @@ def process_gcodefile(args, sourcefile):
                         # result:  ; G1 Z0.200 F7200.000 ; REMOVED by PostProcessing Script:
                         if re.search(rf'^(?:G1)\s(?:Z{str(FIRST_LAYER_HEIGHT)}.*)\s(?:F{RGX_FIND_NUMBER}?)(?:.*)$', strline, flags=re.IGNORECASE):
                             strline = re.sub(r'\n', '', strline, flags=re.IGNORECASE)
-                            strline = f'; {strline} ; REMOVED {appendstring}:\n'
+                            if DEBUG:
+                                strline = f'; {strline} ; REMOVED {appendstring}\n'
+                            else:
+                                strline = ""
+                                
                             B_EDITED_LINE = True
                             B_SKIP_REMOVED = True
 
@@ -292,7 +317,7 @@ def process_gcodefile(args, sourcefile):
                         # get F-value and format it like a human would
                         fspeed = format_number(Decimal(mc.group(3)))
                     
-                        if args.xy:
+                        if argsxy:
                             # add first line to move to XY only
                             line = f'{mc.group(2)} F{str(fspeed)}; just XY - added {appendstring}\n'                           
 
@@ -308,15 +333,23 @@ def process_gcodefile(args, sourcefile):
                             #   then do the final Z-move at half the speed as before.
                             line = f'{line}G1 Z{str(FIRST_LAYER_HEIGHT)} F{str(format_number(float(fspeed)/2))}; Then to first layer height at half the speed - added {appendstring}\n'
 
-                            B_EDITED_LINE = False
-                            B_SKIP_ALL = True
-
                         else:
                             line = f'{mc.group(2)} Z{str(FIRST_LAYER_HEIGHT)} F{str(fspeed)} ; added Z {str(FIRST_LAYER_HEIGHT)} {appendstring}\n'
 
-                            B_EDITED_LINE = False
-                            B_SKIP_ALL = True
+                        B_EDITED_LINE = False
+                        B_SKIP_ALL = True                            
+                        B_START_REMOVE_COMMENTS = True
+                        i_line_after_edit = i_current_line
+                        
                     strline = line
+
+                if i_current_line > i_line_after_edit and argsremovecomments and B_START_REMOVE_COMMENTS == True:
+                    if (not strline.startswith(";") or strline.startswith(" ;")):
+                        rgx = re.search(rf'^[^;\s].*(\;)', strline, flags=re.IGNORECASE)
+                        if rgx:
+                            line = rgx.group(0)[:-1]
+                            line += '\n'
+                            strline = line
 
                 #
                 # Write line back to file
@@ -329,6 +362,11 @@ def process_gcodefile(args, sourcefile):
     finally:
         WRITEFILE.close()
         readfile.close()
+
+
+# Write config file
+def write_file(config):
+    config.write(open(config_file, 'w+'))
 
 
 def format_number(num):
@@ -354,6 +392,12 @@ def format_number(num):
         return '-' + val
     return val
 
+
+def getINT(notint):
+    x = float(notint)
+    y = int(x)
+    z = str(y)
+    return z
 
 ARGS = argumentparser()
 CONFIG = configparser.ConfigParser()
