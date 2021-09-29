@@ -88,7 +88,7 @@ def argumentparser():
             '(Default: %(default)s)')
             
     parser.add_argument('--rk', action='store_true', default=False, \
-        help='Removes comments from file, except Configuration and lines starting with comments. '\
+        help='Removes comments from end of line, except Configuration and lines starting with comments. '\
             '(Default: %(default)s)')
     
     parser.add_argument('--noback', action='store_true', default=False, \
@@ -200,7 +200,7 @@ def main(args, conf):
                     #
                     
                     # get envvar from PrusaSlicer
-                    env_slicer_pp_output_name = getenv('SLIC3R_PP_OUTPUT_NAME')
+                    env_slicer_pp_output_name = str(getenv('SLIC3R_PP_OUTPUT_NAME'))
                     
                     # create empty file for PrusaSlicer to rename the file correctly
                     # which for some reason does not work as advertised
@@ -421,10 +421,12 @@ def process_gcodefile(args, sourcefile):
                     strline = line
 
                 if i_current_line > i_line_after_edit and argsremovecomments and B_START_REMOVE_COMMENTS == True:
+                    if (strline.startswith("; prusaslicer_config")):
+                        B_START_REMOVE_COMMENTS = False
                     if (not strline.startswith(";") or strline.startswith(" ;")):
                         rgx = re.search(rf'^[^;\s].*(\;)', strline, flags=re.IGNORECASE)
                         if rgx:
-                            line = rgx.group(0)[:-1]
+                            line = rgx.group(0)[:-1].strip()
                             line += '\n'
                             strline = line
 
