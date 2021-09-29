@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#/usr/bin/python3
 """ Post Processing Script for Slic3r, PrusaSlicer and SuperSlicer.
     This will make the curent start behaviour more like Curas'.
 
@@ -6,12 +6,23 @@
     - Heat up, down nozzle and ooze at your discretion.
     - Move to the first entry point on XYZ simultaneously.
     - Or, move to the first entry point on XY first, then Z!
+    
+    Features:
+    - Remove configuration from end of file
+    - Remove comments except configuration
+    - Set digits for counter
+    - Reset counter
+    - Reverse counter
+    - use with non PrusaSlicer slicers
+    - Add sort-of progressbar as M117 command
 
     Current behaviour:
     1. Heat up, down nozzle and ooze at your discretion.
     2. Lower nozzle to first layer height and then move to
        first entry point in only X and Y.
        (This move can and will collide with the clips on the Ultimaker 2!)
+
+"C:/Program Files/Python39/python.exe" "c:/dev/Slic3rPostProcessing/SPP-Python/Slic3rPostProcessor.py" --xy --noback --rk --filecounter;
     
 """
 
@@ -27,8 +38,10 @@ import argparse
 import configparser
 import time
 import ntpath
+import ctypes  # An included library with Python install.
+import subprocess
 from shutil import ReadError, copy2
-from os import path, remove
+from os import path, remove, rename, getenv
 from decimal import Decimal
 from datetime import datetime
 
@@ -37,7 +50,7 @@ NOW = datetime.now()
 DEBUG = False
 
 # Config file full path; where _THIS_ file is
-config_file = f'{path.dirname(path.abspath(__file__))}\spp_config.cfg'
+config_file = ntpath.join(f'{path.dirname(path.abspath(__file__))}', 'spp_config.cfg')
 
 
 def debugprint(s):
@@ -59,6 +72,10 @@ def argumentparser():
 
     parser.add_argument('input_file', metavar='gcode-files', type=str, nargs='+',\
         help='One or more GCode file(s) to be processed - at least one is required.')
+    
+    parser.add_argument('--notprusaslicer', action='store_true', default=False, \
+        help='Set to False for any other slicer (based on Slic3r) than PrusaSlicer.' \
+            'Leave default (%(default)s) if you\'re using PrusaSlicer.')
 
     parser.add_argument('--xy', action='store_true', default=False, \
         help='If --xy is provided, the script tells the printer to move to '\
@@ -78,12 +95,24 @@ def argumentparser():
         help='Don\'t create a backup file, if parameter is passed. '\
             '(Default: %(default)s)')
 
-    parser.add_argument('--filecounter', action='store_true', default=False, \
+    grp_counter = parser.add_argument_group('Counter settings')
+    grp_counter.add_argument('--filecounter', action='store_true', default=False, \
         help='Add a prefix counter, if desired, to the output gcode file. '\
             'Default counter length is 6 digits (000001-999999_file.gcode). '\
-            'The counter, however, DOES NOT work with PrusaSlicer! '\
-            'It does work with SuperSlicer and Slic3r. '\
             '(Default: %(default)s)')
+    
+    grp_counter.add_argument('-rev', action='store_true', default=False, \
+        help='If True, adds counter in reverse, down to zero and it will restart '\
+            'at 999999 if -setcounter was not specified otherwise.' \
+            '(Default: %(default)s)')
+    
+    grp_counter.add_argument('-setcounter', action='store', metavar='int', type=int, \
+        help='Reset counter to this [int]')
+    
+    grp_counter.add_argument('-digits', action='store', metavar='int', type=int, default=6, \
+        help='Number of digits for counter.' \
+            '(Default: %(default)s)')
+
 
     grp_progress = parser.add_argument_group('Progress bar settings')
     grp_progress.add_argument('--p', action='store_true', default=False, \
@@ -102,7 +131,18 @@ def argumentparser():
 
     except IOError as msg:
         parser.error(str(msg))
-    
+
+
+def getFileName(fullpath):
+    filename = path.splitext(fullpath)[0]
+    return filename
+
+
+def resetCounter(conf, setCounterTo):
+    if path.exists(config_file):
+        conf['DEFAULT'] = {'FileIncrement': setCounterTo}
+        write_file(conf)
+
 
 def main(args, conf):
     """
@@ -115,15 +155,25 @@ def main(args, conf):
         conf['DEFAULT'] = {'FileIncrement': 0}
         write_file(conf)
     else:
+        if args.setcounter is not None:
+            resetCounter(conf, args.setcounter)
+            
         conf.read(config_file)
         fileincrement = conf.getint('DEFAULT', 'FileIncrement', fallback=0)
     
     for sourcefile in args.input_file:
         
         if path.exists(sourcefile):        
-            # file increment + 1
-            fileincrement += 1
-            
+            # counter increment
+            if args.rev:
+                fileincrement -= 1
+                if fileincrement < 0:
+                    fileincrement = (10 ** args.digits) - 1
+            else:
+                fileincrement += 1
+                if fileincrement >= (10 ** args.digits) - 1:
+                    fileincrement = 0
+
             # Create a backup file, if the user wants it.
             try:
                 if args.noback == False:
@@ -131,27 +181,53 @@ def main(args, conf):
             except OSError as exc:
                 print('FileNotFoundError:' + str(exc))
                 sys.exit(1)
-            
+
             debugprint(f"Working on {sourcefile}")
             process_gcodefile(args, sourcefile)
-            
-            # copy sourcefile to new file with counter
-            # and remove old sourcefile.
+
+            #
+            # Wait ..... what?!
+            # https://github.com/prusa3d/PrusaSlicer/commit/cf32b56454b13faa72bb75363ab63e1d66ba7d9f
+            #
+            #
             destfile = sourcefile
             if args.filecounter:
-                counter = ("{:06d}".format(fileincrement))
-                destfile = ntpath.join(ntpath.dirname(sourcefile)  , counter + '_' + ntpath.basename(sourcefile))         
-                
-                copy2(sourcefile, destfile)
-                remove(sourcefile)
-                sourcefile = destfile
+                counter = str(fileincrement).zfill(args.digits)
+                if args.notprusaslicer == False:
+                    
+                    #
+                    # This should work, somehow. But it doesn't!
+                    #
+                    
+                    # get envvar from PrusaSlicer
+                    env_slicer_pp_output_name = getenv('SLIC3R_PP_OUTPUT_NAME')
+                    
+                    # create empty file for PrusaSlicer to rename the file correctly
+                    # which for some reason does not work as advertised
+                    psfile = ntpath.join(ntpath.dirname(sourcefile), str(counter) + '_' + getFileName(ntpath.basename(env_slicer_pp_output_name)) + '.output_name')
+                    open(psfile, mode='a').close()
+                    
+                    #psfile2 = ntpath.join(ntpath.dirname(sourcefile), str(counter) + '_' + ntpath.basename(env_slicer_pp_output_name) + '.output_name')
+                    #open(psfile2, mode='a').close()
+                    
+                    #Mbox('PPS', "check for file: " + psfile, 1)
+                    #Mbox('PPS', "source: " + destfile + "\nenv: " + env_slicer_pp_output_name, 1)
+                                
+                    #destfile = ntpath.join(ntpath.dirname(env_slicer_pp_output_name), counter + '_' + ntpath.basename(env_slicer_pp_output_name))
+                    #copy2(sourcefile, destfile)
+                else:
+                    # NOT PrusaSlicer:
+                    destfile = ntpath.join(ntpath.dirname(sourcefile)  , counter + '_' + ntpath.basename(sourcefile))         
+
+                    copy2(sourcefile, destfile)
+                    remove(sourcefile)
             
             #
             # write settings back
             conf['DEFAULT'] = {'FileIncrement': fileincrement}
             write_file(conf)
         
-            debugprint(f'File {sourcefile} done.')
+            debugprint(f'File {destfile} done.')
 
 
 def process_gcodefile(args, sourcefile):
@@ -201,7 +277,7 @@ def process_gcodefile(args, sourcefile):
             
             if IS_COMMENT == True:
                 if strline.startswith('; '):
-                    # Count number of lines of the configuration section                    
+                    # Count number of lines of the configuration section
                     ICOUNT += 1
                     continue
                 # find first empty line before configuration section
@@ -222,7 +298,7 @@ def process_gcodefile(args, sourcefile):
     try:
         with open(sourcefile, "w") as WRITEFILE:
             
-            # Store args in vars - don't know why...
+            # Store args in vars - easier to type,
             pwidth = int(args.pwidth)
             argsxy = args.xy
             argsremoveconfig = args.rc
@@ -239,7 +315,7 @@ def process_gcodefile(args, sourcefile):
                     debugprint('Removed Config Section; a total of {ICOUNT} lines.')
 
             if DEBUG:
-                appendstring = 'by PostProcessing Script'
+                appendstring = 'edited by PostProcessing Script'
             else:
                 appendstring = ''
 
@@ -298,10 +374,11 @@ def process_gcodefile(args, sourcefile):
                     if strline and B_FOUND_Z and B_SKIP_REMOVED == False and B_SKIP_ALL == False:
                         # find:    G1 Z-HEIGHT F...
                         # result:  ; G1 Z0.200 F7200.000 ; REMOVED by PostProcessing Script:
-                        if re.search(rf'^(?:G1)\s(?:Z{str(FIRST_LAYER_HEIGHT)}.*)\s(?:F{RGX_FIND_NUMBER}?)(?:.*)$', strline, flags=re.IGNORECASE):
+                        
+                        if re.search(rf'^(?:G1)\s(?:(Z)([-+]?\d*(?:\.\d+)))\s(?:F{RGX_FIND_NUMBER}?)(?:.*)$', strline, flags=re.IGNORECASE):
                             strline = re.sub(r'\n', '', strline, flags=re.IGNORECASE)
                             if DEBUG:
-                                strline = f'; {strline} ; REMOVED {appendstring}\n'
+                                strline = f'; {strline} ; {appendstring}\n'
                             else:
                                 strline = ""
                                 
@@ -319,7 +396,7 @@ def process_gcodefile(args, sourcefile):
                     
                         if argsxy:
                             # add first line to move to XY only
-                            line = f'{mc.group(2)} F{str(fspeed)}; just XY - added {appendstring}\n'                           
+                            line = f'{mc.group(2)} F{str(fspeed)}; just XY - {appendstring}\n'                           
 
                             # check height of FIRST_LAYER_HEIGHT
                             # to make ease-in a bit safer
@@ -328,13 +405,13 @@ def process_gcodefile(args, sourcefile):
                             # Then ease-in a bit ... this always gave me a heart attack!
                             #   So, depending on first layer height, drop to 15 times 
                             #   first layer height in mm (this is hardcoded above),                         
-                            line = f'{line}G1 Z{str(flh)} F{str(fspeed)}; Then Z{str(flh)} at normal speed - added {appendstring}\n'
+                            line = f'{line}G1 Z{str(flh)} F{str(fspeed)}; Then Z{str(flh)} at normal speed - {appendstring}\n'
 
                             #   then do the final Z-move at half the speed as before.
-                            line = f'{line}G1 Z{str(FIRST_LAYER_HEIGHT)} F{str(format_number(float(fspeed)/2))}; Then to first layer height at half the speed - added {appendstring}\n'
+                            line = f'{line}G1 Z{str(FIRST_LAYER_HEIGHT)} F{str(format_number(float(fspeed)/2))}; Then to first layer height at half the speed - {appendstring}\n'
 
                         else:
-                            line = f'{mc.group(2)} Z{str(FIRST_LAYER_HEIGHT)} F{str(fspeed)} ; added Z {str(FIRST_LAYER_HEIGHT)} {appendstring}\n'
+                            line = f'{mc.group(2)} Z{str(FIRST_LAYER_HEIGHT)} F{str(fspeed)} ; Z {str(FIRST_LAYER_HEIGHT)} - {appendstring}\n'
 
                         B_EDITED_LINE = False
                         B_SKIP_ALL = True                            
@@ -391,6 +468,18 @@ def format_number(num):
     if tup.sign:
         return '-' + val
     return val
+
+# Messagebox
+def Mbox(title, text, style):
+    ##  Styles:
+    ##  0 : OK
+    ##  1 : OK | Cancel
+    ##  2 : Abort | Retry | Ignore
+    ##  3 : Yes | No | Cancel
+    ##  4 : Yes | No
+    ##  5 : Retry | Cancel 
+    ##  6 : Cancel | Try Again | Continue
+    return ctypes.windll.user32.MessageBoxW(0, text, title, style)
 
 
 def getINT(notint):
