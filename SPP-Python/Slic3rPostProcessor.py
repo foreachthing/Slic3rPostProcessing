@@ -10,6 +10,7 @@
     Features:
     - Remove configuration from end of file
     - Remove comments except configuration
+    - Remove _all_ comments of any kind!
     - Set digits for counter
     - Reset counter
     - Reverse counter
@@ -32,6 +33,7 @@
 # got issues?
 # Please complain/explain here: https://github.com/foreachthing/Slic3rPostProcessing/issues
 
+from posixpath import split
 import sys
 import re
 import argparse
@@ -39,7 +41,7 @@ import configparser
 import time
 import ntpath
 import ctypes  # An included library with Python install.
-import subprocess
+import random
 from shutil import ReadError, copy2
 from os import path, remove, rename, getenv
 from decimal import Decimal
@@ -49,14 +51,11 @@ from datetime import datetime
 NOW = datetime.now()
 DEBUG = False
 
+# Global Regex
+RGX_FIND_NUMBER = r"-?\d*\.?\d+"
+
 # Config file full path; where _THIS_ file is
 config_file = ntpath.join(f'{path.dirname(path.abspath(__file__))}', 'spp_config.cfg')
-
-
-def debugprint(s):
-    if DEBUG:
-        print(f"{NOW.strftime('%Y-%m-%d %H:%M:%S')}: {str(s)}")
-        time.sleep(5)
 
 
 def argumentparser():
@@ -83,12 +82,16 @@ def argumentparser():
             'the normal speed. '\
             '(Default: %(default)s)')
     
-    parser.add_argument('--rc', action='store_true', default=False, \
-        help='Removes Configuration at end of file. '\
+    parser.add_argument('--oc', action='store_true', default=False, \
+        help='Obscures Configuration at end of file with bogus values. '\
             '(Default: %(default)s)')
             
     parser.add_argument('--rk', action='store_true', default=False, \
         help='Removes comments from end of line, except Configuration and lines starting with comments. '\
+            '(Default: %(default)s)')
+    
+    parser.add_argument('--rak', action='store_true', default=False, \
+        help='Removes all comments! Note: PrusaSlicers GCode preview might not render file correctly. '\
             '(Default: %(default)s)')
     
     parser.add_argument('--noback', action='store_true', default=False, \
@@ -124,6 +127,10 @@ def argumentparser():
         help='Define the progress bar length in characters. You might need to '\
             'adjust the default value. Allow two more chars for brackets. '\
             'Example: [' + 'OOOOO'.ljust(18, '.') + ']. (Default: %(default)d)')
+    
+    grp_progress.add_argument('-pchar', metavar='str', type=str, default="O", \
+        help='Set progress bar character. '\
+            '(Default: %(default)d)')
 
     try:
         args = parser.parse_args()
@@ -131,17 +138,6 @@ def argumentparser():
 
     except IOError as msg:
         parser.error(str(msg))
-
-
-def getFileName(fullpath):
-    filename = path.splitext(fullpath)[0]
-    return filename
-
-
-def resetCounter(conf, setCounterTo):
-    if path.exists(config_file):
-        conf['DEFAULT'] = {'FileIncrement': setCounterTo}
-        write_file(conf)
 
 
 def main(args, conf):
@@ -230,6 +226,75 @@ def main(args, conf):
             debugprint(f'File {destfile} done.')
 
 
+def obscure_configuration(line, oscurechar):
+    """
+        Obscure all settings
+    """
+    
+    return_line_if = ["colour = #", "ramming", "gcode_flavor", "machine_limits_usage", "support_material_style", "printer_technology"]
+    
+    for retline in return_line_if:
+        if line.__contains__(retline):
+            return line
+
+    line = re.sub(RGX_FIND_NUMBER, "0", line, 0, re.IGNORECASE|re.MULTILINE)
+    
+    key = line.split('=')[0].strip()
+    value = line.split('=')[1].strip()
+
+    try:
+        float(value)
+        if key.__contains__("speed"):
+            value = str(random.randint(1, 255))
+        elif key.__contains__("width"):
+            value = str(round(random.random(), 2))
+        elif key.__contains__("variable_layer_height"):
+            value = "1"
+        elif key.__contains__("height"):
+            value = str(round(random.randint(15, 100) / 100, 2))
+    except ValueError:
+        # valueisfloat = False
+        
+        if key.__contains__("top_fill_pattern" or "bottom_fill_pattern"):
+            value = "monotonic"
+        elif key.__contains__("fill_pattern"):
+            value = "stars"
+        elif key.__contains__("support_material_pattern"):
+            value = "rectilinear"
+        elif key.__contains__("support_material_interface_pattern"):
+            value = "auto"
+        elif key.__contains__("slicing_mode"):
+            value = "regular"
+        elif key.__contains__("seam_position"):
+            value = "aligned"
+        elif key.__contains__("ironing_type"):
+            value = "top"
+        elif key.__contains__("host_type"):
+            value = "octoprint"
+        elif key.__contains__("fuzzy_skin"):
+            value = "none"
+        elif key.__contains__("draft_shield"):
+            value = "disabled"
+        elif key.__contains__("brim_type"):
+            value = "outer_only"
+        elif key.__contains__("pattern"):
+            value = "Rectilinear"
+
+
+        else:
+            if value == "end":
+                value = "end"
+            elif value == "begin":
+                value = "begin"
+            elif value.endswith("%"):
+                value = str(random.randint(1, 99)) + "%"
+            elif value == "0,0":
+                value = "0,0"
+            else:
+                value = "" #"\"\""
+
+    return key  + " = " + value + "\n"
+
 def process_gcodefile(args, sourcefile):
     """
         MAIN Processing.
@@ -252,7 +317,6 @@ def process_gcodefile(args, sourcefile):
     #
 
     RGX_FIND_LAYER = r"^M117 Layer (\d+)"
-    RGX_FIND_NUMBER = r"-?\d*\.?\d+"
     FIRST_LAYER_HEIGHT = 0
     B_FOUND_Z = False
     B_EDITED_LINE = False
@@ -262,7 +326,7 @@ def process_gcodefile(args, sourcefile):
     WRITEFILE = None
     NUM_OF_LAYERS = 0
     CURR_LAYER = 0
-    IS_COMMENT = True
+    IS_CONFIG_COMMENT = True
     ICOUNT = 0
     
     try:
@@ -275,14 +339,12 @@ def process_gcodefile(args, sourcefile):
             # start from the back
             strline = lines[len_lines-lIndex-1]
             
-            if IS_COMMENT == True:
-                if strline.startswith('; '):
-                    # Count number of lines of the configuration section
-                    ICOUNT += 1
-                    continue
-                # find first empty line before configuration section
-                elif strline == "\n":
-                    IS_COMMENT = False
+            if IS_CONFIG_COMMENT == True:
+                # Count number of lines of the configuration section
+                ICOUNT += 1
+                # find beginning of configuration section
+                if strline == "; prusaslicer_config = begin\n":
+                    IS_CONFIG_COMMENT = False
             
             # Find last Layer:            
             rgxm117 = re.search(RGX_FIND_LAYER, strline, flags=re.IGNORECASE)
@@ -294,25 +356,35 @@ def process_gcodefile(args, sourcefile):
         print("Oops! Something went wrong in finding total numbers of layers. " + str(exc))
         sys.exit(1)
 
-
     try:
-        with open(sourcefile, "w") as WRITEFILE:
+        with open(sourcefile, "w",  newline='\n') as WRITEFILE:
             
-            # Store args in vars - easier to type,
+            # Store args in vars - easier to type, or change, add...
             pwidth = int(args.pwidth)
             argsxy = args.xy
-            argsremoveconfig = args.rc
+            argsobscureconfig = args.oc
             argprogress = args.p
             argsremovecomments = args.rk
-            
-            # Progressbar Character
-            pchar = "O"
+            argsremoveallcomments = args.rak
+            argsprogchar = args.pchar            
             
             # remove configuration section, if parameter submitted:
-            if argsremoveconfig:
-                del lines[len(lines)-ICOUNT:len(lines)]
-                if DEBUG:
-                    debugprint('Removed Config Section; a total of {ICOUNT} lines.')
+            if argsobscureconfig:
+                len_lines = len(lines)
+                for lIndex in range(len_lines):
+                    # start from the back
+                    strline = strline = lines[len_lines-lIndex-1]
+                    if strline == "; prusaslicer_config = begin\n":
+                        break
+                    if strline != "; prusaslicer_config = end\n":
+                        strline = obscure_configuration(strline, "0")
+                    
+                    lines[len_lines-lIndex-1] = strline
+                
+                # REMOVE configuration
+                # del lines[len(lines)-ICOUNT:len(lines)]
+                # if DEBUG:
+                #     debugprint('Removed Config Section; a total of {ICOUNT} lines.')
 
             if DEBUG:
                 appendstring = 'edited by PostProcessing Script'
@@ -357,7 +429,7 @@ def process_gcodefile(args, sourcefile):
                                 p2width = 9
                                     
                         # assemble the progressbar (M117)
-                        strline = rf'M117 [{pchar * filledLength + strlcase + "." * (p2width - filledLength)}];' + '\n'
+                        strline = rf'M117 [{argsprogchar * filledLength + strlcase + "." * (p2width - filledLength)}];' + '\n'
                     else:
                         tmppercentage = "{:#.3g}".format((CURR_LAYER / NUM_OF_LAYERS) * 100)
                         percentage = tmppercentage[:3] if tmppercentage.endswith('.') else tmppercentage[:4]
@@ -430,6 +502,18 @@ def process_gcodefile(args, sourcefile):
                             line += '\n'
                             strline = line
 
+                if (argsremoveallcomments):
+                    if (strline.startswith(";") or strline.startswith(" ;")):
+                        strline = ""
+                    else:
+                        rgx = re.search(rf'(.*)(?:;)', strline, flags=re.IGNORECASE)
+                        if rgx:
+                            line = rgx.group(0)[:-1].strip()
+                            line += '\n'
+                            strline = line
+                        else:
+                            strline = ""
+    
                 #
                 # Write line back to file
                 WRITEFILE.write(strline)
@@ -446,6 +530,17 @@ def process_gcodefile(args, sourcefile):
 # Write config file
 def write_file(config):
     config.write(open(config_file, 'w+'))
+
+
+def getFileName(fullpath):
+    filename = path.splitext(fullpath)[0]
+    return filename
+
+
+def resetCounter(conf, setCounterTo):
+    if path.exists(config_file):
+        conf['DEFAULT'] = {'FileIncrement': setCounterTo}
+        write_file(conf)
 
 
 def format_number(num):
@@ -483,6 +578,10 @@ def Mbox(title, text, style):
     ##  6 : Cancel | Try Again | Continue
     return ctypes.windll.user32.MessageBoxW(0, text, title, style)
 
+def debugprint(s):
+    if DEBUG:
+        print(f"{NOW.strftime('%Y-%m-%d %H:%M:%S')}: {str(s)}")
+        time.sleep(5)
 
 def getINT(notint):
     x = float(notint)
