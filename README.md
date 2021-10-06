@@ -1,8 +1,5 @@
 # Slic3r-Post-Processing
 
-### IMPORTANT
-This commit https://github.com/prusa3d/PrusaSlicer/commit/eaf6e0dca7c54ba71056a4bc0fd15450e40b81da broke the way PostProcessing is done! It first creates a temp file on the local drive, does the processing and then copies the file back.
-
 ## What it does
 Post processing for [Slic3r](http://slic3r.org), [PrusaSlicer](https://www.prusa3d.com/prusaslicer/) and [SuperSlicer](https://github.com/supermerill/SuperSlicer):
 
