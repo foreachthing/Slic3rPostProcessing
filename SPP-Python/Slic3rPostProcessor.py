@@ -8,13 +8,13 @@
     - Or, move to the first entry point on XY first, then Z!
     
     Features:
-    - Remove configuration from end of file
+    - Obscure configuration at end of file
     - Remove comments except configuration
     - Remove _all_ comments of any kind!
     - Set digits for counter
     - Reset counter
     - Reverse counter
-    - use with non PrusaSlicer slicers
+    - use with non PrusaSlicer Slicer
     - Add sort-of progressbar as M117 command
 
     Current behaviour:
@@ -39,11 +39,10 @@ import argparse
 import configparser
 import time
 import ntpath
-import ctypes  # An included library with Python install.
 import random
 from posixpath import split
 from shutil import ReadError, copy2
-from os import path, remove, rename, getenv
+from os import path, remove, getenv
 from decimal import Decimal
 from datetime import datetime
 
@@ -78,7 +77,7 @@ def argumentparser():
 
     parser.add_argument('--xy', action='store_true', default=False, \
         help='If --xy is provided, the script tells the printer to move to '\
-            'X and Y of first start point, then drop the nozzle to Z at half '\
+            'X and Y of first start point, then drop the nozzle to Z at a third '\
             'the normal speed. '\
             '(Default: %(default)s)')
     
@@ -160,6 +159,7 @@ def main(args, conf):
     
     for sourcefile in args.input_file:
         
+        # Count up or down
         if path.exists(sourcefile):        
             # counter increment
             if args.rev:
@@ -179,12 +179,13 @@ def main(args, conf):
                 print('FileNotFoundError:' + str(exc))
                 sys.exit(1)
 
+            #
+            #
+            #
             debugprint(f"Working on {sourcefile}")
             process_gcodefile(args, sourcefile)
 
             #
-            # Wait ..... what?!
-            # https://github.com/prusa3d/PrusaSlicer/commit/cf32b56454b13faa72bb75363ab63e1d66ba7d9f
             #
             #
             destfile = sourcefile
@@ -203,8 +204,11 @@ def main(args, conf):
                     f.write(counter + '_' + ntpath.basename(env_slicer_pp_output_name))
                     f.close()
                     
-                    # Mbox('PPS', "check for file: " + sourcefile, 1)
-                    # Mbox('PPS', "content: " + newfilename, 1)
+                    if DEBUG:
+                        debugprint("# # # # -filecounter-")
+                        debugprint("\tSLIC3R_PP_OUTPUT_NAME:\t" + env_slicer_pp_output_name )
+                        debugprint("\tTemp file: " + sourcefile + '.output_name')
+                        debugprint("\t\tContent :"+ counter + '_' + ntpath.basename(env_slicer_pp_output_name))
 
                 else:
                     # NOT PrusaSlicer:
@@ -363,7 +367,7 @@ def process_gcodefile(args, sourcefile):
             argsremoveallcomments = args.rak
             argsprogchar = args.pchar            
             
-            # remove configuration section, if parameter submitted:
+            # obscure configuration section, if parameter submitted:
             if argsobscureconfig:
                 len_lines = len(lines)
                 for lIndex in range(len_lines):
@@ -376,10 +380,10 @@ def process_gcodefile(args, sourcefile):
                     
                     lines[len_lines-lIndex-1] = strline
                 
-                # REMOVE configuration
-                # del lines[len(lines)-ICOUNT:len(lines)]
-                # if DEBUG:
-                #     debugprint('Removed Config Section; a total of {ICOUNT} lines.')
+            # REMOVE configuration
+            # del lines[len(lines)-ICOUNT:len(lines)]
+            # if DEBUG:
+            #     debugprint('Removed Config Section; a total of {ICOUNT} lines.')
 
             if DEBUG:
                 appendstring = 'edited by PostProcessing Script'
@@ -475,7 +479,7 @@ def process_gcodefile(args, sourcefile):
                             line = f'{line}G1 Z{str(flh)} F{str(fspeed)}; Then Z{str(flh)} at normal speed - {appendstring}\n'
 
                             #   then do the final Z-move at half the speed as before.
-                            line = f'{line}G1 Z{str(FIRST_LAYER_HEIGHT)} F{str(format_number(float(fspeed)/2))}; Then to first layer height at half the speed - {appendstring}\n'
+                            line = f'{line}G1 Z{str(FIRST_LAYER_HEIGHT)} F{str(format_number(float(fspeed)/3))}; Then to first layer height at a third of previous speed - {appendstring}\n'
 
                         else:
                             line = f'{mc.group(2)} Z{str(FIRST_LAYER_HEIGHT)} F{str(fspeed)} ; Z {str(FIRST_LAYER_HEIGHT)} - {appendstring}\n'
@@ -527,11 +531,7 @@ def write_file(config):
     config.write(open(config_file, 'w+'))
 
 
-def getFileName(fullpath):
-    filename = path.splitext(fullpath)[0]
-    return filename
-
-
+# Reset counter
 def resetCounter(conf, setCounterTo):
     if path.exists(config_file):
         conf['DEFAULT'] = {'FileIncrement': setCounterTo}
@@ -561,28 +561,19 @@ def format_number(num):
         return '-' + val
     return val
 
-# Messagebox
-def Mbox(title, text, style):
-    ##  Styles:
-    ##  0 : OK
-    ##  1 : OK | Cancel
-    ##  2 : Abort | Retry | Ignore
-    ##  3 : Yes | No | Cancel
-    ##  4 : Yes | No
-    ##  5 : Retry | Cancel 
-    ##  6 : Cancel | Try Again | Continue
-    return ctypes.windll.user32.MessageBoxW(0, text, title, style)
 
 def debugprint(s):
     if DEBUG:
         print(f"{NOW.strftime('%Y-%m-%d %H:%M:%S')}: {str(s)}")
         time.sleep(5)
 
+
 def getINT(notint):
     x = float(notint)
     y = int(x)
     z = str(y)
     return z
+
 
 ARGS = argumentparser()
 CONFIG = configparser.ConfigParser()
