@@ -33,7 +33,6 @@
 # got issues?
 # Please complain/explain here: https://github.com/foreachthing/Slic3rPostProcessing/issues
 
-from posixpath import split
 import sys
 import re
 import argparse
@@ -42,6 +41,7 @@ import time
 import ntpath
 import ctypes  # An included library with Python install.
 import random
+from posixpath import split
 from shutil import ReadError, copy2
 from os import path, remove, rename, getenv
 from decimal import Decimal
@@ -83,11 +83,12 @@ def argumentparser():
             '(Default: %(default)s)')
     
     parser.add_argument('--oc', action='store_true', default=False, \
-        help='Obscures Configuration at end of file with bogus values. '\
+        help='WIP! Use at own risk - does not yet produce valid PS-gcode.\n' \
+            'Obscures Configuration at end of file with bogus values. '\
             '(Default: %(default)s)')
             
     parser.add_argument('--rk', action='store_true', default=False, \
-        help='Removes comments from end of line, except Configuration and lines starting with comments. '\
+        help='Removes comments from end of line, except Configuration and pure comments. '\
             '(Default: %(default)s)')
     
     parser.add_argument('--rak', action='store_true', default=False, \
@@ -110,7 +111,7 @@ def argumentparser():
             '(Default: %(default)s)')
     
     grp_counter.add_argument('-setcounter', action='store', metavar='int', type=int, \
-        help='Reset counter to this [int]')
+        help='Reset counter to this [int]. Or edit spp_config.cfg directly.')
     
     grp_counter.add_argument('-digits', action='store', metavar='int', type=int, default=6, \
         help='Number of digits for counter.' \
@@ -188,29 +189,23 @@ def main(args, conf):
             #
             destfile = sourcefile
             if args.filecounter:
+                
+                # Create Counter String, zero-padded accordingly
                 counter = str(fileincrement).zfill(args.digits)
+                
                 if args.notprusaslicer == False:
-                    
-                    #
-                    # This should work, somehow. But it doesn't!
-                    #
-                    
+                                        
                     # get envvar from PrusaSlicer
                     env_slicer_pp_output_name = str(getenv('SLIC3R_PP_OUTPUT_NAME'))
                     
-                    # create empty file for PrusaSlicer to rename the file correctly
-                    # which for some reason does not work as advertised
-                    psfile = ntpath.join(ntpath.dirname(sourcefile), str(counter) + '_' + getFileName(ntpath.basename(env_slicer_pp_output_name)) + '.output_name')
-                    open(psfile, mode='a').close()
+                    # create file for PrusaSlicer with correct name as content
+                    f = open(sourcefile + '.output_name', mode='w')
+                    f.write(counter + '_' + ntpath.basename(env_slicer_pp_output_name))
+                    f.close()
                     
-                    #psfile2 = ntpath.join(ntpath.dirname(sourcefile), str(counter) + '_' + ntpath.basename(env_slicer_pp_output_name) + '.output_name')
-                    #open(psfile2, mode='a').close()
-                    
-                    #Mbox('PPS', "check for file: " + psfile, 1)
-                    #Mbox('PPS', "source: " + destfile + "\nenv: " + env_slicer_pp_output_name, 1)
-                                
-                    #destfile = ntpath.join(ntpath.dirname(env_slicer_pp_output_name), counter + '_' + ntpath.basename(env_slicer_pp_output_name))
-                    #copy2(sourcefile, destfile)
+                    # Mbox('PPS', "check for file: " + sourcefile, 1)
+                    # Mbox('PPS', "content: " + newfilename, 1)
+
                 else:
                     # NOT PrusaSlicer:
                     destfile = ntpath.join(ntpath.dirname(sourcefile)  , counter + '_' + ntpath.basename(sourcefile))         
