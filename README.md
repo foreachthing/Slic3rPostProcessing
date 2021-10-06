@@ -56,4 +56,4 @@ If you have one or more script active, add this to the correct spot (add new lin
   
 
 ## NOTE:
-cs version will no longer be maintained.
+CS version will no longer be maintained and has been removed.
