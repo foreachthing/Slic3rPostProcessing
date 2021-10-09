@@ -69,15 +69,17 @@ def argumentparser():
         epilog = 'Result: An Ultimaker 2 (and up) friedly GCode file.')
 
     parser.add_argument('input_file', metavar='gcode-files', type=str, nargs='+',\
-        help='One or more GCode file(s) to be processed - at least one is required.')
+        help='One or more GCode file(s) to be processed '\
+            '- at least one is required.')
 
     parser.add_argument('--notprusaslicer', action='store_true', default=False, \
-        help='Set to False for any other slicer (based on Slic3r) than PrusaSlicer.' \
-            'Leave default (%(default)s) if you\'re using PrusaSlicer.')
+        help='Set to False for any other slicer (based on Slic3r) than ' \
+            'PrusaSlicer. Leave default (%(default)s) '\
+            'if you\'re using PrusaSlicer.')
 
     parser.add_argument('--xy', action='store_true', default=False, \
-        help='If --xy is provided, the script tells the printer to move to '\
-            'X and Y of first start point, then drop the nozzle to Z at a third '\
+        help='If --xy is provided, the printer will move to X and Y ' \
+            'of first start point, then drop the nozzle to Z at a third '\
             'the normal speed. '\
             '(Default: %(default)s)')
 
@@ -87,11 +89,13 @@ def argumentparser():
             '(Default: %(default)s)')
 
     parser.add_argument('--rk', action='store_true', default=False, \
-        help='Removes comments from end of line, except Configuration and pure comments. '\
+        help='Removes comments from end of line, except '\
+            'configuration and pure comments. '\
             '(Default: %(default)s)')
 
     parser.add_argument('--rak', action='store_true', default=False, \
-        help='Removes all comments! Note: PrusaSlicers GCode preview might not render file correctly. '\
+        help='Removes all comments! Note: PrusaSlicers GCode preview '\
+            'might not render file correctly. '\
             '(Default: %(default)s)')
 
     parser.add_argument('--noback', action='store_true', default=False, \
@@ -172,10 +176,11 @@ def main(args, conf):
 
             # Create a backup file, if the user wants it.
             try:
+                # if noback (no backup file) == True, then don't do it.
                 if args.noback == False:
                     copy2(sourcefile, re.sub(r"\.gcode$", ".gcode.bak", sourcefile, flags=re.IGNORECASE))
             except OSError as exc:
-                print('FileNotFoundError:' + str(exc))
+                print('FileNotFoundError (backup file):' + str(exc))
                 sys.exit(1)
 
             #
@@ -318,7 +323,6 @@ def process_gcodefile(args, sourcefile):
 
     rgx_find_layer = r"^M117 Layer (\d+)"
     first_layer_height = 0
-    b_found_z = False
     b_edited_line = False
     b_skip_all = False
     b_skip_removed = False
@@ -429,9 +433,7 @@ def process_gcodefile(args, sourcefile):
                                 p2width = 9
                                     
                         ## assemble the progressbar (M117)
-                        # strline = rf'M117 [{argsprogchar * filledLength + strlcase + "." * (p2width - filledLength)}];' + '\n'
-                        strline = str.format(rf'M117 [{0}]\n', {argsprogchar * filledLength + strlcase + "." * (p2width - filledLength)})
-                        
+                        strline = rf'M117 [{argsprogchar * filledLength + strlcase + "." * (p2width - filledLength)}];' + '\n'
                         
                     else:
                         tmppercentage = "{:#.3g}".format((current_layer / number_of_layers) * 100)
@@ -439,19 +441,22 @@ def process_gcodefile(args, sourcefile):
                         # strline = rf'M117 Layer {current_layer}, {percentage} %;' + '\n'                        
                         strline = str.format(rf'M117 Layer {0}, {1} %;\n', current_layer, percentage)
                 
-                if strline and b_found_z == False and b_skip_all == False:
-                    # Find: ;HEIGHT:0.2 and store first layer height value
-                    rgx1stlayer = re.search(r"^;HEIGHT:(.*)", strline, flags=re.IGNORECASE)
+                if strline and first_layer_height == 0:
+                # if strline and b_found_z == False and b_skip_all == False:
+                    # Find: ;Z:0.2 and store first layer height value
+                    rgx1stlayer = re.search(r"^;Z:(.*)", strline, flags=re.IGNORECASE)
                     if rgx1stlayer:
-                        # Found ;HEIGHT:
+                        # Found ;Z:
                         first_layer_height = format_number(Decimal(rgx1stlayer.group(1)))      
-                        b_found_z = True
+
                 else:
-                    if strline and b_found_z and b_skip_removed == False and b_skip_all == False:
+                    if strline and first_layer_height != 0 and b_skip_removed == False and b_skip_all == False:
                         # find:    G1 Z-HEIGHT F...
                         # result:  ; G1 Z0.200 F7200.000 ; REMOVED by PostProcessing Script:
                         
-                        if re.search(rf'^(?:G1)\s(?:(Z)([-+]?\d*(?:\.\d+)))\s(?:F{RGX_FIND_NUMBER}?)(?:.*)$', strline, flags=re.IGNORECASE):
+                        # G1 Z.2 F7200 ; move to next layer (0)
+                        #if re.search(rf'^(?:G1)\s(?:(Z)([-+]?\d*(?:\.\d+)))\s(?:F{RGX_FIND_NUMBER}?)(?:.*)$', strline, flags=re.IGNORECASE):
+                        if re.search(rf'^(?:G1)\s(?:(?:Z)([-+]?\d*(?:\.\d+)))\s(?:F{RGX_FIND_NUMBER}?)(?:.*layer \(0\).*)$', strline, flags=re.IGNORECASE):
                             strline = re.sub(r'\n', '', strline, flags=re.IGNORECASE)
                             if DEBUG:
                                 strline = f'; {strline} ; {appendstring}\n'
@@ -472,8 +477,8 @@ def process_gcodefile(args, sourcefile):
                     
                         if argsxy:
                             # add first line to move to XY only
-                            # line = f'{mc.group(2)} F{str(fspeed)}; just XY - {appendstring}\n'
-                            line = str.format(f'{0} F{1}; just XY - {2}\n', mc.group(2), str(fspeed), appendstring)
+                            line = f'{mc.group(2)} F{str(fspeed)}; just XY - {appendstring}\n'
+                            #line = str.format(f'{0} F{1}; just XY - {2}\n', mc.group(2), str(fspeed), appendstring)
 
                             # check height of FIRST_LAYER_HEIGHT
                             # to make ease-in a bit safer
@@ -482,16 +487,13 @@ def process_gcodefile(args, sourcefile):
                             # Then ease-in a bit ... this always gave me a heart attack!
                             #   So, depending on first layer height, drop to 15 times 
                             #   first layer height in mm (this is hardcoded above),                         
-                            #line = f'{line}G1 Z{str(flh)} F{str(fspeed)}; Then Z{str(flh)} at normal speed - {appendstring}\n'
-                            line = str.format(f'{0}G1 Z{1} F{2}; Then Z{1} at normal speed - {2}\n', line, str(flh), str(fspeed), appendstring)
-
+                            line = f'{line}G1 Z{str(flh)} F{str(fspeed)}; Then Z{str(flh)} at normal speed - {appendstring}\n'
+                            
                             #   then do the final Z-move at half the speed as before.
-                            # line = f'{line}G1 Z{str(first_layer_height)} F{str(format_number(float(fspeed)/3))}; Then to first layer height at a third of previous speed - {appendstring}\n'
-                            line = str.format(f'{0}G1 Z{1} F{2}; Then to first layer height at a third of previous speed - {3}\n', line, str(first_layer_height), str(format_number(float(fspeed)/3)), appendstring)
+                            line = f'{line}G1 Z{str(first_layer_height)} F{str(format_number(float(fspeed)/3))}; Then to first layer height at a third of previous speed - {appendstring}\n'
 
                         else:
-                            #line = f'{mc.group(2)} Z{str(first_layer_height)} F{str(fspeed)} ; Z {str(first_layer_height)} - {appendstring}\n'
-                            line = str.format(f'{0} Z{1} F{2} ; Z {1} - {3}\n', mc.group(2), str(first_layer_height), str(fspeed), appendstring)
+                            line = f'{mc.group(2)} Z{str(first_layer_height)} F{str(fspeed)} ; Z {str(first_layer_height)} - {appendstring}\n'
 
                         b_edited_line = False
                         b_skip_all = True                            
