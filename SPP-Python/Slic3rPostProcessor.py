@@ -83,17 +83,18 @@ def argumentparser():
             'the normal speed. '\
             '(Default: %(default)s)')
 
-    parser.add_argument('--oc', action='store_true', default=False, \
+    mx_group = parser.add_mutually_exclusive_group()
+    mx_group.add_argument('--oc', action='store_true', default=False, \
         help='WIP! Use at own risk - does not yet produce valid PS-gcode.\n' \
             'Obscures Configuration at end of file with bogus values. '\
             '(Default: %(default)s)')
 
-    parser.add_argument('--rk', action='store_true', default=False, \
+    mx_group.add_argument('--rk', action='store_true', default=False, \
         help='Removes comments from end of line, except '\
             'configuration and pure comments. '\
             '(Default: %(default)s)')
 
-    parser.add_argument('--rak', action='store_true', default=False, \
+    mx_group.add_argument('--rak', action='store_true', default=False, \
         help='Removes all comments! Note: PrusaSlicers GCode preview '\
             'might not render file correctly. '\
             '(Default: %(default)s)')
@@ -235,26 +236,25 @@ def obscure_configuration(line):
     """
         Obscure all settings
     """
-    
-    return_line_if = ["colour = #", "ramming", "gcode_flavor", "machine_limits_usage", "support_material_style", "printer_technology"]
+    return_line_if = ["machine", "bed_shape", "color_change_gcode", "colour = #", "ramming", "gcode_flavor", "machine_limits_usage", "support_material_style", "printer_technology", "wipe"]
     
     for retline in return_line_if:
         if line.__contains__(retline):
             return line
 
-    line = re.sub(RGX_FIND_NUMBER, "0", line, 0, re.IGNORECASE|re.MULTILINE)
+    # line = re.sub(RGX_FIND_NUMBER, str(random.randint(1, 99)), line, 0, re.IGNORECASE|re.MULTILINE)
     
     key = line.split('=')[0].strip()
     value = line.split('=')[1].strip()
+    if value == '0' or value == '1':
+        value = random.randint(0, 1)
 
     try:
         float(value)
-        if key.__contains__("speed"):
-            value = str(random.randint(1, 255))
-        elif key.__contains__("width"):
+        if key.__contains__("width"):
             value = str(round(random.random(), 2))
         elif key.__contains__("variable_layer_height"):
-            value = "1"
+            value = str(random.randint(0, 1))
         elif key.__contains__("height"):
             value = str(round(random.randint(15, 100) / 100, 2))
     except ValueError:
@@ -284,7 +284,6 @@ def obscure_configuration(line):
             value = "outer_only"
         elif key.__contains__("pattern"):
             value = "Rectilinear"
-
 
         else:
             if value == "end":
@@ -335,7 +334,7 @@ def process_gcodefile(args, sourcefile):
     
     try:
         # Find total layers - search from back of file until
-        #   first "M117 Layer [num]" is found.
+        # first "M117 Layer [num]" is found.
         # Store total number of layers.
         # Also, measure configuration section length.
         len_lines = len(lines)
@@ -455,7 +454,6 @@ def process_gcodefile(args, sourcefile):
                         # result:  ; G1 Z0.200 F7200.000 ; REMOVED by PostProcessing Script:
                         
                         # G1 Z.2 F7200 ; move to next layer (0)
-                        #if re.search(rf'^(?:G1)\s(?:(Z)([-+]?\d*(?:\.\d+)))\s(?:F{RGX_FIND_NUMBER}?)(?:.*)$', strline, flags=re.IGNORECASE):
                         if re.search(rf'^(?:G1)\s(?:(?:Z)([-+]?\d*(?:\.\d+)))\s(?:F{RGX_FIND_NUMBER}?)(?:.*layer \(0\).*)$', strline, flags=re.IGNORECASE):
                             strline = re.sub(r'\n', '', strline, flags=re.IGNORECASE)
                             if DEBUG:
