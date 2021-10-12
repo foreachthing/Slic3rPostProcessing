@@ -235,97 +235,9 @@ def main(args, conf):
 def obscure_configuration(line):
     """
         Obscure all settings
-    """
-    return_line_if = ["machine", "bed_shape", "color_change_gcode", "colour = #", "ramming", "gcode_flavor", "machine_limits_usage", "support_material_style", "printer_technology", "filament_type", "wipe", "extruder_offset"]
-    
-    for retline in return_line_if:
-        if line.__contains__(retline):
-            return line
-        
-    clear_line_if = ["filament_settings_id"]    
-    for clrval in clear_line_if:
-        if line.__contains__(retline):
-            return line.split('=')[0].strip() + " = "
+    """            
+    return str.format("; {0} = {1}\n", "wipe", 0)
 
-    # line = re.sub(RGX_FIND_NUMBER, str(random.randint(1, 99)), line, 0, re.IGNORECASE|re.MULTILINE)
-    
-    key = line.split('=')[0].strip()
-    value = line.split('=')[1].strip()
-    bcheck = True
-    if value == '0' or value == '1':
-        value = random.randint(0, 1)
-        bcheck = False
-
-    if bcheck:
-        rgxvalue = re.search(r"(?:\d+,\d+)", value)
-        if rgxvalue:
-            value = "0,0"
-            bcheck = False
-
-        if value == "end":
-            value = "end"
-            bcheck = False
-        elif value == "begin":
-            value = "begin"
-            bcheck = False
-        elif value.endswith("%"):
-            value = str(random.randint(1, 100)) + "%"
-            bcheck = False
-            
-    if bcheck:
-        try:
-            # check if value is float:
-            value = float(value)
-            
-            if value > 200:
-                value = random.randint(185, 290)
-            elif value > 100:
-                value = random.randint(95, 185)
-            elif value > 10:
-                value = random.randint(10, 95)
-            elif value > 2:
-                value = random.randint(2, 10)
-            elif value >= 0:
-                value = round(random.random(), 2)
-            elif value < 0:
-                value = random.randint(-10, -1)
-                
-        except ValueError:
-            # valueisfloat = False
-            
-            # if key.__contains__("top_fill_pattern" or "bottom_fill_pattern"):
-            #     value = "monotonic"
-            if key.__contains__("fill_pattern"):
-                value = "monotonic"
-            elif key.__contains__("support_material_pattern"):
-                value = "rectilinear-grid"
-            elif key.__contains__("support_material_interface_pattern"):
-                value = "auto"
-            elif key.__contains__("slicing_mode"):
-                value = "regular"
-            elif key.__contains__("seam_position"):
-                value = "aligned"
-            elif key.__contains__("ironing_type"):
-                value = "top"
-            elif key.__contains__("host_type"):
-                value = "octoprint"
-            elif key.__contains__("fuzzy_skin"):
-                value = "none"
-            elif key.__contains__("draft_shield"):
-                value = "disabled"
-            elif key.__contains__("brim_type"):
-                value = "outer_only"
-            elif key.__contains__("pattern"):
-                value = "Rectilinear"
-            elif key.__contains__("output_filename_format"):
-                value = "[input_filename_base].gcode"
-            elif key.__contains__("gcode"):
-                value = ";"                
-
-            else:
-                value = "" #"\"\""
-
-    return str.format("{0} = {1}\n", key, value)
 
 def process_gcodefile(args, sourcefile):
     """
