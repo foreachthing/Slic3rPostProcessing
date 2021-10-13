@@ -17,8 +17,8 @@ Only requirement: the gcode has to have `;HEIGHT:[layer_z]` after `G92 E0`, or a
 
 ### Parameters for the Python Version
 1. Optional: `--xy` will move to X and Y first, then drops on Z (eases-in a bit: full speed to 15 times "first layer height", then at half speed to first layer height).
-             Omitting this option will lead to XYZ simultaneous move to first point.
-2. Optional: `--oc` obscures slicer configuration at the end of the file. Use at own risk!
+             Omitting this option will lead to XYZ simultaneous move to first point. This will still clear the clips on the Ultimaker 2 plate. If not, you'd have to edit your start gcode to place the nozzle somewhere "better" (i.e. in the center of the bed) first.
+2. Optional: `--oc` obscures slicer configuration at the end of the file. None of the settings will remain for anyone to see.
 3. Optional: `--rk` removes comments except configuration and real comments.
 4. Optional: `--rak` removes _all_ comments.
 5. Optional: `--noback` won't create a backup file if True is passed.
