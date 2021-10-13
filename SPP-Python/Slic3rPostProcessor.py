@@ -236,7 +236,7 @@ def obscure_configuration(line):
     """
         Obscure all settings
     """            
-    return str.format("; {0} = {1}\n", "wipe", 0)
+    return str.format("; {0}={0}\n", "")
 
 
 def process_gcodefile(args, sourcefile):
