@@ -23,7 +23,11 @@
        first entry point in only X and Y.
        (This move can and will collide with the clips on the Ultimaker 2!)
 
-"C:/Program Files/Python39/python.exe" "c:/dev/Slic3rPostProcessing/SPP-Python/Slic3rPostProcessor.py" --xy --noback --rk --filecounter;
+    Usage:
+    - Add this line the the post processing script section of the slicer's
+      Configuration (make sure the paths are valid on your system):
+      "C:/Program Files/Python39/python.exe" "c:/dev/Slic3rPostProcessing/
+        SPP-Python/Slic3rPostProcessor.py" --xy --noback --rk --filecounter;
 
 """
 
@@ -33,32 +37,36 @@
 # got issues?
 # Please complain/explain here: https://github.com/foreachthing/Slic3rPostProcessing/issues
 
+#
+# "cheat" pylint, because it can be annoying
+#pylint: disable = line-too-long, invalid-name, broad-except
+#
+
+import decimal
 import sys
 import re
 import argparse
 import configparser
-import time
 import ntpath
-import random
-from posixpath import split
 from shutil import ReadError, copy2
-from os import path, remove, getenv, environ
+from os import path, remove, getenv
 from decimal import Decimal
 from datetime import datetime
 
 # datetime object containing current date and time
 NOW = datetime.now()
-DEBUG = False
 
 # Global Regex
 RGX_FIND_NUMBER = r"-?\d*\.?\d+"
 
 # Config file full path; where _THIS_ file is
-config_file = ntpath.join(f'{path.dirname(path.abspath(__file__))}', 'spp_config.cfg')
+CONFIG_FILE = ntpath.join(f'{path.dirname(path.abspath(__file__))}', 'spp_config.cfg')
 
 
 def argumentparser():
-    """ ArgumentParser """
+    """
+        ArgumentParser
+    """
     parser = argparse.ArgumentParser(
         prog=path.basename(__file__),
         description='** Slicer Post Processing Script ** \n\r' \
@@ -148,23 +156,23 @@ def main(args, conf):
     """
         MAIN
     """
-    
+
     # check if config file exists; else create it with default 0
     conf = configparser.ConfigParser()
-    if not path.exists(config_file):
+    if not path.exists(CONFIG_FILE):
         conf['DEFAULT'] = {'FileIncrement': 0}
-        write_file(conf)
+        write_config_file(conf)
     else:
         if args.setcounter is not None:
             reset_counter(conf, args.setcounter)
-            
-        conf.read(config_file)
+
+        conf.read(CONFIG_FILE)
         fileincrement = conf.getint('DEFAULT', 'FileIncrement', fallback=0)
-    
+
     for sourcefile in args.input_file:
-        
+
         # Count up or down
-        if path.exists(sourcefile):        
+        if path.exists(sourcefile):
             # counter increment
             if args.rev:
                 fileincrement -= 1
@@ -178,65 +186,53 @@ def main(args, conf):
             # Create a backup file, if the user wants it.
             try:
                 # if noback (no backup file) == True, then don't do it.
-                if args.noback == False:
+                if args.noback is False:
                     copy2(sourcefile, re.sub(r"\.gcode$", ".gcode.bak", sourcefile, flags=re.IGNORECASE))
+
             except OSError as exc:
                 print('FileNotFoundError (backup file):' + str(exc))
                 sys.exit(1)
 
             #
             #
-            #
-            debugprint(f"Working on {sourcefile}")
             process_gcodefile(args, sourcefile)
 
             #
             #
-            #
             destfile = sourcefile
             if args.filecounter:
-                
+
                 ## Create Counter String, zero-padded accordingly
                 counter = str(fileincrement).zfill(args.digits)
-                
-                if args.notprusaslicer == False:
-                                        
+
+                if args.notprusaslicer is False:
+
                     ## get envvar from PrusaSlicer
                     env_slicer_pp_output_name = str(getenv('SLIC3R_PP_OUTPUT_NAME'))
-                    
+
                     ## create file for PrusaSlicer with correct name as content
-                    # output_file = ntpath.join(ntpath.dirname(sourcefile)  , counter + '_' + ntpath.basename(sourcefile))
-                    # environ['SLIC3R_PP_OUTPUT_NAME'] = output_file
-                    f = open(sourcefile + '.output_name', mode='w')
-                    f.write(counter + '_' + ntpath.basename(env_slicer_pp_output_name))
-                    f.close()
-                    
-                    if DEBUG:
-                        debugprint("# # # # -filecounter-")
-                        debugprint(str.format("\tSLIC3R_PP_OUTPUT_NAME : {0}", env_slicer_pp_output_name))
-                        debugprint(str.format("\tTemp file             : {0}.output_name", sourcefile))
-                        debugprint(str.format("\t\tContent             : {0}_{1}", counter, ntpath.basename(env_slicer_pp_output_name)))
-                        
+                    with open(sourcefile + '.output_name', mode='w', encoding='UTF-8') as fopen:
+                        fopen.write(counter + '_' + ntpath.basename(env_slicer_pp_output_name))
+
                 else:
                     # NOT PrusaSlicer:
-                    destfile = ntpath.join(ntpath.dirname(sourcefile)  , counter + '_' + ntpath.basename(sourcefile))
+                    destfile = ntpath.join(ntpath.dirname(sourcefile)  , counter
+                                           + '_' + ntpath.basename(sourcefile))
 
                     copy2(sourcefile, destfile)
                     remove(sourcefile)
-            
+
             #
             # write settings back
             conf['DEFAULT'] = {'FileIncrement': fileincrement}
-            write_file(conf)
-        
-            debugprint(f'File {destfile} done.')
+            write_config_file(conf)
 
 
-def obscure_configuration(line):
+def obscure_configuration():
     """
-        Obscure all settings
-    """            
-    return str.format("; {0}={0}\n", "")
+        Obscure _all_ settings
+    """
+    return str.format("; {0} = {1}\n", " ", 0)
 
 
 def process_gcodefile(args, sourcefile):
@@ -247,12 +243,12 @@ def process_gcodefile(args, sourcefile):
 
     # Read the ENTIRE GCode file into memory
     try:
-        with open(sourcefile, "r") as readfile:
+        with open(sourcefile, "r", encoding='UTF-8') as readfile:
             lines = readfile.readlines()
     except ReadError as exc:
         print('FileReadError:' + str(exc))
         sys.exit(1)
-        
+
     #
     # Define list of progressbar percentage and characters
     progress_list = [[0, "."], [.25, ":"], [.5, "+"], [.75, "#"]]
@@ -266,30 +262,30 @@ def process_gcodefile(args, sourcefile):
     b_skip_all = False
     b_skip_removed = False
     b_start_remove_comments = False
-    write_file = None
+    writefile = None
     number_of_layers = 0
     current_layer = 0
     is_config_comment = True
     icount = 0
-    
+
     try:
         # Find total layers - search from back of file until
         # first "M117 Layer [num]" is found.
         # Store total number of layers.
         # Also, measure configuration section length.
         len_lines = len(lines)
-        for lIndex in range(len_lines):
+        for line_index in range(len_lines):
             # start from the back
-            strline = lines[len_lines-lIndex-1]
-            
-            if is_config_comment == True:
+            strline = lines[len_lines-line_index-1]
+
+            if is_config_comment is True:
                 # Count number of lines of the configuration section
                 icount += 1
                 # find beginning of configuration section
                 if strline == "; prusaslicer_config = begin\n":
                     is_config_comment = False
-            
-            # Find last Layer:            
+
+            # Find last Layer:
             rgxm117 = re.search(rgx_find_layer, strline, flags=re.IGNORECASE)
             if rgxm117:
                 # Found M117 Layer xy
@@ -300,8 +296,8 @@ def process_gcodefile(args, sourcefile):
         sys.exit(1)
 
     try:
-        with open(sourcefile, "w",  newline='\n') as write_file:
-            
+        with open(sourcefile, "w", newline='\n', encoding='UTF-8') as writefile:
+
             # Store args in vars - easier to type, or change, add...
             pwidth = int(args.pwidth)
             argsxy = args.xy
@@ -309,182 +305,170 @@ def process_gcodefile(args, sourcefile):
             argprogress = args.p
             argsremovecomments = args.rk
             argsremoveallcomments = args.rak
-            argsprogchar = args.pchar            
-            
+            argsprogchar = args.pchar
+
             # obscure configuration section, if parameter submitted:
             if argsobscureconfig:
                 len_lines = len(lines)
-                for lIndex in range(len_lines):
+                for line_index in range(len_lines):
                     # start from the back
-                    strline = strline = lines[len_lines-lIndex-1]
+                    strline = strline = lines[len_lines-line_index-1]
                     if strline == "; prusaslicer_config = begin\n":
                         break
                     if strline != "; prusaslicer_config = end\n":
-                        strline = obscure_configuration(strline)
-                    
-                    lines[len_lines-lIndex-1] = strline
-                
+                        strline = obscure_configuration()
+
+                    lines[len_lines-line_index-1] = strline
+
             # REMOVE configuration
             # del lines[len(lines)-ICOUNT:len(lines)]
-            # if DEBUG:
-            #     debugprint('Removed Config Section; a total of {ICOUNT} lines.')
 
-            if DEBUG:
-                appendstring = 'edited by PostProcessing Script'
-            else:
-                appendstring = ''
-
-            i_current_line = 0
-            
             # Loop over GCODE file
-            for lIndex in range(len(lines)):
-                strline = lines[lIndex]
-                
-                i_current_line += 1
+            for i, strline in enumerate(lines):
                 i_line_after_edit = 0
-                
+
                 #
                 # PROGRESS-BAR in M117:
                 rgxm117 = re.search(rgx_find_layer, strline, flags=re.IGNORECASE)
-                if rgxm117:
-                    current_layer = int(rgxm117.group(1))
-                                        
-                    if argprogress:
-                        # Create progress bar on printer's display
-                        # Use a different char every 0.25% progress:
-                        #   Edit progress_list to get finer progress
-                        filledLength = int(pwidth * current_layer // number_of_layers)
-                        filledLengthHALF = float(pwidth * current_layer / number_of_layers - filledLength)
-                        strlcase = ""
-                        p2width = pwidth
 
-                        if current_layer / number_of_layers < 1:
-                            # check for percentage and insert corresponding char from progress_list
-                            for i in range(len(progress_list)):                                
-                                if filledLengthHALF >= progress_list[i][0]:
-                                    strlcase = progress_list[i][1]
-                                    p2width = pwidth - 1
-                                else:
-                                    break
-                                                            
-                            if current_layer == 0:
-                                strlcase = "1st Layer"
-                                p2width = 9
-                                    
-                        ## assemble the progressbar (M117)
-                        strline = rf'M117 [{argsprogchar * filledLength + strlcase + "." * (p2width - filledLength)}];' + '\n'
-                        
-                    else:
-                        tmppercentage = "{:#.3g}".format((current_layer / number_of_layers) * 100)
-                        percentage = tmppercentage[:3] if tmppercentage.endswith('.') else tmppercentage[:4]
-                        # strline = rf'M117 Layer {current_layer}, {percentage} %;' + '\n'                        
-                        strline = str.format('M117 Layer {0}, {1}%;' + '\n', current_layer, percentage)
-                
+                if rgxm117 and argprogress:
+                    current_layer = int(rgxm117.group(1))
+
+                    # Create progress bar on printer's display
+                    # Use a different char every 0.25% progress:
+                    #   Edit progress_list to get finer progress
+                    filled_length = int(pwidth * current_layer // number_of_layers)
+                    filled_lengt_half = float(pwidth * current_layer / number_of_layers - filled_length)
+                    strlcase = ""
+                    p2width = pwidth
+
+                    if current_layer == 0:
+                        strlcase = "1st Layer"
+                        p2width = len(strlcase)
+                    elif current_layer / number_of_layers < 1:
+                        # check for percentage and insert corresponding char from progress_list
+                        for prog_thing in enumerate(progress_list):
+                            if filled_lengt_half >= (prog_thing[1])[0]:
+                                strlcase = (prog_thing[1])[1]
+                                p2width = pwidth - 1
+                            else:
+                                break
+
+                    ## assemble the progressbar (M117)
+                    strline = rf'M117 [{argsprogchar * filled_length + strlcase + "." * (p2width - filled_length)}];' + '\n'
+
+                elif rgxm117:
+                    tmppercentage = "{:#.3g}".format((current_layer / number_of_layers) * 100)
+                    percentage = tmppercentage[:3] \
+                        if tmppercentage.endswith('.') else tmppercentage[:4]
+                    # strline = rf'M117 Layer {current_layer}, {percentage} %;' + '\n'
+                    strline = str.format('M117 Layer {0}, {1}%;' + '\n', current_layer, percentage)
+
                 if strline and first_layer_height == 0:
                 # if strline and b_found_z == False and b_skip_all == False:
                     # Find: ;Z:0.2 and store first layer height value
                     rgx1stlayer = re.search(r"^;Z:(.*)", strline, flags=re.IGNORECASE)
                     if rgx1stlayer:
                         # Found ;Z:
-                        first_layer_height = format_number(Decimal(rgx1stlayer.group(1)))      
+                        first_layer_height = format_number(Decimal(rgx1stlayer.group(1)))
 
                 else:
-                    if strline and first_layer_height != 0 and b_skip_removed == False and b_skip_all == False:
-                        # find:    G1 Z-HEIGHT F...
-                        # result:  ; G1 Z0.200 F7200.000 ; REMOVED by PostProcessing Script:
-                        
+                    if strline and first_layer_height != 0 and b_skip_removed is False and b_skip_all is False:
                         # G1 Z.2 F7200 ; move to next layer (0)
+                        # and replace with empty string
                         if re.search(rf'^(?:G1)\s(?:(?:Z)([-+]?\d*(?:\.\d+)))\s(?:F{RGX_FIND_NUMBER}?)(?:.*layer \(0\).*)$', strline, flags=re.IGNORECASE):
-                            strline = re.sub(r'\n', '', strline, flags=re.IGNORECASE)
-                            if DEBUG:
-                                strline = f'; {strline} ; {appendstring}\n'
-                            else:
-                                strline = ""
-                                
+                            # strline = re.sub(r'\n', '', strline, flags=re.IGNORECASE)
+                            strline = ""
+
                             b_edited_line = True
                             b_skip_removed = True
 
-                if b_edited_line and b_skip_all == False:
+                if b_edited_line and b_skip_all is False:
                     # find:   G1 X85.745 Y76.083 F7200.000; fist "point" on Z-HEIGHT and add Z-HEIGHT
                     # result: G1 X85.745 Y76.083 Z0.2 F7200 ; added by PostProcessing Script
                     line = strline
-                    mc = re.search(rf'^((G1\sX{RGX_FIND_NUMBER}\sY{RGX_FIND_NUMBER})\s.*(?:F({RGX_FIND_NUMBER})))', strline, flags=re.IGNORECASE)
-                    if mc:   
+                    m_c = re.search(rf'^((G1\sX{RGX_FIND_NUMBER}\sY{RGX_FIND_NUMBER})\s.*(?:F({RGX_FIND_NUMBER})))', strline, flags=re.IGNORECASE)
+                    if m_c:
                         # get F-value and format it like a human would
-                        fspeed = format_number(Decimal(mc.group(3)))
-                    
+                        fspeed = format_number(Decimal(m_c.group(3)))
+
                         if argsxy:
                             # add first line to move to XY only
-                            line = f'{mc.group(2)} F{str(fspeed)}; just XY - {appendstring}\n'
-                            #line = str.format(f'{0} F{1}; just XY - {2}\n', mc.group(2), str(fspeed), appendstring)
+                            line = f'{m_c.group(2)} F{str(fspeed)}; just XYn'
 
                             # check height of FIRST_LAYER_HEIGHT
                             # to make ease-in a bit safer
                             flh = format_number(Decimal(first_layer_height) * 15)
 
                             # Then ease-in a bit ... this always gave me a heart attack!
-                            #   So, depending on first layer height, drop to 15 times 
-                            #   first layer height in mm (this is hardcoded above),                         
-                            line = f'{line}G1 Z{str(flh)} F{str(fspeed)}; Then Z{str(flh)} at normal speed - {appendstring}\n'
-                            
-                            #   then do the final Z-move at half the speed as before.
-                            line = f'{line}G1 Z{str(first_layer_height)} F{str(format_number(float(fspeed)/3))}; Then to first layer height at a third of previous speed - {appendstring}\n'
+                            #   So, depending on first layer height, drop to 15 times
+                            #   first layer height in mm (this is hardcoded above),
+                            line = f'{line}G1 Z{str(flh)} F{str(fspeed)}; Then Z{str(flh)} at normal speed\n'
+
+                            #   then do the final Z-move at a third of the previous speed.
+                            line = f'{line}G1 Z{str(first_layer_height)} F{str(format_number(float(fspeed)/3))}; ' \
+                                'Then to first layer height at a third of previous speed\n'
 
                         else:
-                            line = f'{mc.group(2)} Z{str(first_layer_height)} F{str(fspeed)} ; Z {str(first_layer_height)} - {appendstring}\n'
+                            line = f'{m_c.group(2)} Z{str(first_layer_height)} F{str(fspeed)} ; move to first skirt point\n'
 
                         b_edited_line = False
-                        b_skip_all = True                            
+                        b_skip_all = True
                         b_start_remove_comments = True
-                        i_line_after_edit = i_current_line
-                        
+                        i_line_after_edit = i + 1
+
                     strline = line
 
-                if i_current_line > i_line_after_edit and argsremovecomments and b_start_remove_comments == True:
-                    if (strline.startswith("; prusaslicer_config")):
+                if (i + 1) > i_line_after_edit and argsremovecomments and b_start_remove_comments:
+                    if strline.startswith("; prusaslicer_config"):
                         b_start_remove_comments = False
                     if (not strline.startswith(";") or strline.startswith(" ;")):
-                        rgx = re.search(rf'^[^;\s].*(\;)', strline, flags=re.IGNORECASE)
+                        rgx = re.search(r'^[^;\s].*(\;)', strline, flags=re.IGNORECASE)
                         if rgx:
                             line = rgx.group(0)[:-1].strip()
-                            line += '\n'
-                            strline = line
+                            strline = line + '\n'
 
-                if (argsremoveallcomments):
+                if argsremoveallcomments:
                     if (strline.startswith(";") or strline.startswith(" ;")):
                         strline = ""
                     else:
-                        rgx = re.search(rf'(.*)(?:;)', strline, flags=re.IGNORECASE)
+                        rgx = re.search(r'(.*)(?:;)', strline, flags=re.IGNORECASE)
                         if rgx:
                             line = rgx.group(0)[:-1].strip()
-                            line += '\n'
-                            strline = line
+                            strline = line + '\n'
                         else:
                             strline = ""
-    
+
                 #
                 # Write line back to file
-                write_file.write(strline)
+                writefile.write(strline)
+
 
     except Exception as exc:
         print("Oops! Something went wrong. " + str(exc))
         sys.exit(1)
 
     finally:
-        write_file.close()
+        writefile.close()
         readfile.close()
 
 
 # Write config file
-def write_file(config):
-    config.write(open(config_file, 'w+'))
+def write_config_file(config):
+    """
+        Write Config File
+    """
+    config.write(open(CONFIG_FILE, 'w+', encoding='UTF-8'))
 
 
 # Reset counter
-def reset_counter(conf, setCounterTo):
-    if path.exists(config_file):
-        conf['DEFAULT'] = {'FileIncrement': setCounterTo}
-        write_file(conf)
+def reset_counter(conf, set_counter_to):
+    """
+        Reset Counter
+    """
+    if path.exists(CONFIG_FILE):
+        conf['DEFAULT'] = {'FileIncrement': set_counter_to}
+        write_config_file(conf)
 
 
 def format_number(num):
@@ -493,7 +477,8 @@ def format_number(num):
     """
     try:
         dec = Decimal(num)
-    except:
+    except decimal.DecimalException as ex:
+        print(str(ex))
         return f'Bad number. Not a decimal: {num}'
     tup = dec.as_tuple()
     delta = len(tup.digits) + tup.exponent
@@ -511,17 +496,14 @@ def format_number(num):
     return val
 
 
-def debugprint(s):
-    if DEBUG:
-        print(f"{NOW.strftime('%Y-%m-%d %H:%M:%S')}: {str(s)}")
-        time.sleep(5)
-
-
 def get_int(notint):
-    x = float(notint)
-    y = int(x)
-    z = str(y)
-    return z
+    """
+        Whatever to INT
+    """
+    xvalue = float(notint)
+    yvalue = int(xvalue)
+    zvalue = str(yvalue)
+    return zvalue
 
 
 ARGS = argumentparser()

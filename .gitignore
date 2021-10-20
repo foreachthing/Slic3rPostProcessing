@@ -255,3 +255,4 @@ ModelManifest.xml
 .fake/
 SPP-Python/recopy_14864.bat
 SPP-Python/14864.3mf
+SPP-Python/Slic3rPostProcessor.py.bak*
