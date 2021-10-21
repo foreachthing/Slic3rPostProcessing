@@ -358,7 +358,8 @@ def process_gcodefile(args, sourcefile):
                     strline = rf'M117 [{argsprogchar * filled_length + strlcase + "." * (p2width - filled_length)}];' + '\n'
 
                 elif rgxm117:
-                    tmppercentage = "{:#.3g}".format((current_layer / number_of_layers) * 100)
+                    current_layer = int(rgxm117.group(1))
+                    tmppercentage = f"{((current_layer / number_of_layers) * 100):#.3g}"
                     percentage = tmppercentage[:3] \
                         if tmppercentage.endswith('.') else tmppercentage[:4]
                     # strline = rf'M117 Layer {current_layer}, {percentage} %;' + '\n'
@@ -389,12 +390,19 @@ def process_gcodefile(args, sourcefile):
                     line = strline
                     m_c = re.search(rf'^((G1\sX{RGX_FIND_NUMBER}\sY{RGX_FIND_NUMBER})\s.*(?:F({RGX_FIND_NUMBER})))', strline, flags=re.IGNORECASE)
                     if m_c:
+
+                        # Replace G1 with G0: Non extruding move
+                        grp2 = m_c.group(2).replace('G1', 'G0')
+
                         # get F-value and format it like a human would
                         fspeed = format_number(Decimal(m_c.group(3)))
 
+                        # from CURA:
+                        line = f'G0 F{str(fspeed)} Y50 ; avoid prime blob\n'
+
                         if argsxy:
                             # add first line to move to XY only
-                            line = f'{m_c.group(2)} F{str(fspeed)}; just XYn'
+                            line += f'{grp2} F{str(fspeed)}; just XY' + '\n'
 
                             # check height of FIRST_LAYER_HEIGHT
                             # to make ease-in a bit safer
@@ -403,14 +411,14 @@ def process_gcodefile(args, sourcefile):
                             # Then ease-in a bit ... this always gave me a heart attack!
                             #   So, depending on first layer height, drop to 15 times
                             #   first layer height in mm (this is hardcoded above),
-                            line = f'{line}G1 Z{str(flh)} F{str(fspeed)}; Then Z{str(flh)} at normal speed\n'
+                            line += f'G0 F{str(fspeed)} Z{str(flh)} ; Then Z{str(flh)} at normal speed' + '\n'
 
                             #   then do the final Z-move at a third of the previous speed.
-                            line = f'{line}G1 Z{str(first_layer_height)} F{str(format_number(float(fspeed)/3))}; ' \
+                            line += f'G0 F{str(format_number(float(fspeed)/3))} Z{str(first_layer_height)} ; ' \
                                 'Then to first layer height at a third of previous speed\n'
 
                         else:
-                            line = f'{m_c.group(2)} Z{str(first_layer_height)} F{str(fspeed)} ; move to first skirt point\n'
+                            line += f'{grp2} Z{str(first_layer_height)} F{str(fspeed)} ; move to first skirt point\n'
 
                         b_edited_line = False
                         b_skip_all = True
