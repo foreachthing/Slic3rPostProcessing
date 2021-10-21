@@ -358,7 +358,8 @@ def process_gcodefile(args, sourcefile):
                     strline = rf'M117 [{argsprogchar * filled_length + strlcase + "." * (p2width - filled_length)}];' + '\n'
 
                 elif rgxm117:
-                    tmppercentage = "{:#.3g}".format((current_layer / number_of_layers) * 100)
+                    current_layer = int(rgxm117.group(1))
+                    tmppercentage = f"{((current_layer / number_of_layers) * 100):#.3g}"
                     percentage = tmppercentage[:3] \
                         if tmppercentage.endswith('.') else tmppercentage[:4]
                     # strline = rf'M117 Layer {current_layer}, {percentage} %;' + '\n'
