@@ -23,11 +23,11 @@ Only requirement: the gcode has to have `;HEIGHT:[layer_z]` after `G92 E0`, or a
 4. Optional: `--rak` removes _all_ comments.
 5. Optional: `--noback` won't create a backup file if True is passed.
 6. Optional: `--filecounter` adds a file counter (prefix) to the output file name.
-7. Optional:   `-rev` reverse counter (count down).
-8. Optional:   `-setcounter` set counter manually to this [int].
-9. Optional:   `-digits` set counter's number of digits. I.e. 5 = 00123.
+7. Optional: &ensp;`--rev` reverse counter (count down).
+8. Optional: &ensp;`--setcounter` set counter manually to this [int].
+9. Optional: &ensp;`--digits` set counter's number of digits. I.e. 5 = 00123.
 10. Optional: `--notprusaslicer` should work with non-PrusaSlic3r (not tested!).
-11. Optional: `--p` a progress bar will be pushed to display (M117).
+11. Optional: `--prog` a progress bar will be pushed to display (M117).
 12. Optional:  `--pwidth` progress bar width in chars (= display-char-width - 2).
 13. GCode file name (will be provided by the Slicer; _must_ be provided if used as standalone)
 

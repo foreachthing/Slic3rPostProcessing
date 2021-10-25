@@ -117,30 +117,30 @@ def argumentparser():
             'Default counter length is 6 digits (000001-999999_file.gcode). '\
             '(Default: %(default)s)')
 
-    grp_counter.add_argument('-rev', action='store_true', default=False, \
+    grp_counter.add_argument('--rev', action='store_true', default=False, \
         help='If True, adds counter in reverse, down to zero and it will restart '\
             'at 999999 if -setcounter was not specified otherwise.' \
             '(Default: %(default)s)')
 
-    grp_counter.add_argument('-setcounter', action='store', metavar='int', type=int, \
+    grp_counter.add_argument('--setcounter', action='store', metavar='int', type=int, \
         help='Reset counter to this [int]. Or edit spp_config.cfg directly.')
 
-    grp_counter.add_argument('-digits', action='store', metavar='int', type=int, default=6, \
+    grp_counter.add_argument('--digits', action='store', metavar='int', type=int, default=6, \
         help='Number of digits for counter.' \
             '(Default: %(default)s)')
 
     grp_progress = parser.add_argument_group('Progress bar settings')
-    grp_progress.add_argument('--p', action='store_true', default=False, \
+    grp_progress.add_argument('--prog', action='store_true', default=False, \
         help='If --p is provided, a progress bar instead of layer number/percentage, '\
             'will be added to your GCode file and displayed on your printer (M117). '\
             '(Default: %(default)s)')
 
-    grp_progress.add_argument('-pwidth', metavar='int', type=int, default=18, \
+    grp_progress.add_argument('--pwidth', metavar='int', type=int, default=18, \
         help='Define the progress bar length in characters. You might need to '\
             'adjust the default value. Allow two more chars for brackets. '\
             'Example: [' + 'OOOOO'.ljust(18, '.') + ']. (Default: %(default)d)')
 
-    grp_progress.add_argument('-pchar', metavar='str', type=str, default="O", \
+    grp_progress.add_argument('--pchar', metavar='str', type=str, default="O", \
         help='Set progress bar character. '\
             '(Default: %(default)s)')
 
@@ -302,7 +302,7 @@ def process_gcodefile(args, sourcefile):
             pwidth = int(args.pwidth)
             argsxy = args.xy
             argsobscureconfig = args.oc
-            argprogress = args.p
+            argprogress = args.prog
             argsremovecomments = args.rk
             argsremoveallcomments = args.rak
             argsprogchar = args.pchar
