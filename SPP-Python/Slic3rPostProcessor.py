@@ -131,7 +131,7 @@ def argumentparser():
 
     grp_progress = parser.add_argument_group('Progress bar settings')
     grp_progress.add_argument('--prog', action='store_true', default=False, \
-        help='If --p is provided, a progress bar instead of layer number/percentage, '\
+        help='If --prog is provided, a progress bar instead of layer number/percentage, '\
             'will be added to your GCode file and displayed on your printer (M117). '\
             '(Default: %(default)s)')
 
