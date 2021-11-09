@@ -232,7 +232,7 @@ def obscure_configuration():
     """
         Obscure _all_ settings
     """
-    return str.format("; {0} = {1}\n", " ", 0)
+    return "; = 0\n"
 
 
 def process_gcodefile(args, sourcefile):
@@ -306,6 +306,7 @@ def process_gcodefile(args, sourcefile):
             argsremovecomments = args.rk
             argsremoveallcomments = args.rak
             argsprogchar = args.pchar
+            fspeed = 3000
 
             # obscure configuration section, if parameter submitted:
             if argsobscureconfig:
@@ -377,28 +378,51 @@ def process_gcodefile(args, sourcefile):
                     if strline and first_layer_height != 0 and b_skip_removed is False and b_skip_all is False:
                         # G1 Z.2 F7200 ; move to next layer (0)
                         # and replace with empty string
-                        if re.search(rf'^(?:G1)\s(?:(?:Z)([-+]?\d*(?:\.\d+)))\s(?:F{RGX_FIND_NUMBER}?)(?:.*layer \(0\).*)$', strline, flags=re.IGNORECASE):
-                            # strline = re.sub(r'\n', '', strline, flags=re.IGNORECASE)
+                        layerzero = re.search(rf'^(?:G1)\s(?:(?:Z)([-+]?\d*(?:\.\d+)))\s(?:F({RGX_FIND_NUMBER})?)(?:.*layer \(0\).*)$', strline, flags=re.IGNORECASE)
+                        if layerzero:
+                            # Get the speed for moving to Z?
+                            fspeed = format_number(Decimal(layerzero.group(2)))
+                            
+                            # clear this line, I got no use for that one!
                             strline = ""
 
                             b_edited_line = True
                             b_skip_removed = True
 
                 if b_edited_line and b_skip_all is False:
-                    # find:   G1 X85.745 Y76.083 F7200.000; fist "point" on Z-HEIGHT and add Z-HEIGHT
-                    # result: G1 X85.745 Y76.083 Z0.2 F7200 ; added by PostProcessing Script
                     line = strline
-                    m_c = re.search(rf'^((G1\sX{RGX_FIND_NUMBER}\sY{RGX_FIND_NUMBER})\s.*(?:F({RGX_FIND_NUMBER})))', strline, flags=re.IGNORECASE)
+                    
+                    # NOT WORKING ANYMORE! Thanks....
+                    # m_c = re.search(rf'^((G1\sX{RGX_FIND_NUMBER}\sY{RGX_FIND_NUMBER})\s.*(?:F({RGX_FIND_NUMBER})))', strline, flags=re.IGNORECASE)
+                    
+                    # ARGH! PS, make your mind up! Stop changing that without telling me/us, please!
+                    # G1 X92.706 Y96.155 ; move to first skirt point
+                    m_c = re.search(rf'^((G1\sX{RGX_FIND_NUMBER}\sY{RGX_FIND_NUMBER})\s.*(?:(move to first skirt point)))', strline, flags=re.IGNORECASE)
+                    
                     if m_c:
+                        # In 2.4.0b1 something changed:
+                        # It was:
+                        ## G1 E-6 F3000 ; retract
+                        ## G92 E0 ; reset extrusion distance
+                        ## G1 Z.2 F9000 ; move to next layer (0)
+                        ## G1 X92.706 Y96.155 ; move to first skirt point
+                        ## G1 E6 F3000 ;  ; unretract
+
+                        # But needs to be this:
+                        ## G1 E-6 F3000 ; retract
+                        ## G92 E0 ; reset extrusion distance
+                        ## G0 F3600 Y50 ; avoid prime blob
+                        ## G0 X92.706 Y96.155 F3600; just XY
+                        ## G0 F3600 Z3 ; Then Z3 at normal speed
+                        ## G0 F1200 Z0.2 ; Then to first layer height at a third of previous speed
+                        ## G1 E6 F3000 ;  ; unretract
 
                         # Replace G1 with G0: Non extruding move
                         grp2 = m_c.group(2).replace('G1', 'G0')
 
-                        # get F-value and format it like a human would
-                        fspeed = format_number(Decimal(m_c.group(3)))
-
                         # from CURA:
-                        line = f'G0 F{str(fspeed)} Y50 ; avoid prime blob\n'
+                        # Also helps to avoid clips on the plate.
+                        line = f'G0 F{str(fspeed)} Y50 ; just go to some place safe\n'
 
                         if argsxy:
                             # add first line to move to XY only
@@ -418,7 +442,12 @@ def process_gcodefile(args, sourcefile):
                                 'Then to first layer height at a third of previous speed\n'
 
                         else:
+                            # Combined move to first skirt point.
+                            # Prusa thinks driving through clips is no issue!
                             line += f'{grp2} Z{str(first_layer_height)} F{str(fspeed)} ; move to first skirt point\n'
+
+                        # ERASE next line!
+                        lines[line_index + 1] = ""
 
                         b_edited_line = False
                         b_skip_all = True
@@ -487,7 +516,8 @@ def format_number(num):
         dec = Decimal(num)
     except decimal.DecimalException as ex:
         print(str(ex))
-        return f'Bad number. Not a decimal: {num}'
+        #return f'Bad number. Not a decimal: {num}'
+        return "nan"
     tup = dec.as_tuple()
     delta = len(tup.digits) + tup.exponent
     digits = ''.join(str(d) for d in tup.digits)
