@@ -382,7 +382,7 @@ def process_gcodefile(args, sourcefile):
                         if layerzero:
                             # Get the speed for moving to Z?
                             fspeed = format_number(Decimal(layerzero.group(2)))
-                            
+
                             # clear this line, I got no use for that one!
                             strline = ""
 
@@ -391,14 +391,13 @@ def process_gcodefile(args, sourcefile):
 
                 if b_edited_line and b_skip_all is False:
                     line = strline
-                    
+
                     # NOT WORKING ANYMORE! Thanks....
                     # m_c = re.search(rf'^((G1\sX{RGX_FIND_NUMBER}\sY{RGX_FIND_NUMBER})\s.*(?:F({RGX_FIND_NUMBER})))', strline, flags=re.IGNORECASE)
-                    
-                    # ARGH! PS, make your mind up! Stop changing that without telling me/us, please!
+                    #
+                    # ARGH! PS, make up your mind! Stop changing that without telling me/us, please!
                     # G1 X92.706 Y96.155 ; move to first skirt point
                     m_c = re.search(rf'^((G1\sX{RGX_FIND_NUMBER}\sY{RGX_FIND_NUMBER})\s.*(?:(move to first skirt point)))', strline, flags=re.IGNORECASE)
-                    
                     if m_c:
                         # In 2.4.0b1 something changed:
                         # It was:
@@ -446,8 +445,6 @@ def process_gcodefile(args, sourcefile):
                             # Prusa thinks driving through clips is no issue!
                             line += f'{grp2} Z{str(first_layer_height)} F{str(fspeed)} ; move to first skirt point\n'
 
-                        # ERASE next line!
-                        lines[line_index + 1] = ""
 
                         b_edited_line = False
                         b_skip_all = True
