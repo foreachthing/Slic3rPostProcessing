@@ -21,7 +21,7 @@ Only requirement: the gcode has to have `;HEIGHT:[layer_z]` after `G92 E0`, or a
 2. Optional: `--oc` obscures slicer configuration at the end of the file. None of the settings will remain for anyone to see.
 3. Optional: `--rk` removes comments except configuration and real comments.
 4. Optional: `--rak` removes _all_ comments.
-5. Optional: `--back` create a backup file if True is passed.
+5. Optional: `--backup` create a backup file if True is passed.
 6. Optional: `--filecounter` adds a file counter (prefix) to the output file name.
 7. Optional: &ensp;`--rev` reverse counter (count down).
 8. Optional: &ensp;`--setcounter` set counter manually to this [int].
