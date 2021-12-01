@@ -27,7 +27,7 @@
     - Add this line the the post processing script section of the slicer's
       Configuration (make sure the paths are valid on your system):
       "C:/Program Files/Python39/python.exe" "c:/dev/Slic3rPostProcessing/
-        SPP-Python/Slic3rPostProcessor.py" --xy --noback --rk --filecounter;
+        SPP-Python/Slic3rPostProcessor.py" --xy --backup --rk --filecounter;
 
 """
 
@@ -94,56 +94,56 @@ def argumentparser():
 
     mx_group = parser.add_mutually_exclusive_group()
     mx_group.add_argument('--oc', action='store_true', default=False,
-                          help='WIP! Use at own risk - does not yet produce valid PS-gcode.\n'
-                          'Obscures Configuration at end of file with bogus values. '
-                          '(Default: %(default)s)')
+                        help='WIP! Use at own risk - does not yet produce valid PS-gcode.\n'
+                        'Obscures Configuration at end of file with bogus values. '
+                        '(Default: %(default)s)')
 
     mx_group.add_argument('--rk', action='store_true', default=False,
-                          help='Removes comments from end of line, except '
-                          'configuration and pure comments. '
-                          '(Default: %(default)s)')
+                        help='Removes comments from end of line, except '
+                        'configuration and pure comments. '
+                        '(Default: %(default)s)')
 
     mx_group.add_argument('--rak', action='store_true', default=False,
-                          help='Removes all comments! Note: PrusaSlicers GCode preview '
-                          'might not render file correctly. '
-                          '(Default: %(default)s)')
+                        help='Removes all comments! Note: PrusaSlicers GCode preview '
+                        'might not render file correctly. '
+                        '(Default: %(default)s)')
 
-    parser.add_argument('--noback', action='store_true', default=False,
-                        help='Don\'t create a backup file, if parameter is passed. '
+    parser.add_argument('--backup', action='store_true', default=False,
+                        help='Create a backup file, if True is passed. '
                         '(Default: %(default)s)')
 
     grp_counter = parser.add_argument_group('Counter settings')
     grp_counter.add_argument('--filecounter', action='store_true', default=False,
-                             help='Add a prefix counter, if desired, to the output gcode file. '
-                             'Default counter length is 6 digits (000001-999999_file.gcode). '
-                             '(Default: %(default)s)')
+                        help='Add a prefix counter, if desired, to the output gcode file. '
+                        'Default counter length is 6 digits (000001-999999_file.gcode). '
+                        '(Default: %(default)s)')
 
     grp_counter.add_argument('--rev', action='store_true', default=False,
-                             help='If True, adds counter in reverse, down to zero and it will restart '
-                             'at 999999 if -setcounter was not specified otherwise.'
-                             '(Default: %(default)s)')
+                        help='If True, adds counter in reverse, down to zero and it will restart '
+                        'at 999999 if -setcounter was not specified otherwise.'
+                        '(Default: %(default)s)')
 
     grp_counter.add_argument('--setcounter', action='store', metavar='int', type=int,
-                             help='Reset counter to this [int]. Or edit spp_config.cfg directly.')
+                        help='Reset counter to this [int]. Or edit spp_config.cfg directly.')
 
     grp_counter.add_argument('--digits', action='store', metavar='int', type=int, default=6,
-                             help='Number of digits for counter.'
-                             '(Default: %(default)s)')
+                        help='Number of digits for counter.'
+                        '(Default: %(default)s)')
 
     grp_progress = parser.add_argument_group('Progress bar settings')
     grp_progress.add_argument('--prog', action='store_true', default=False,
-                              help='If --prog is provided, a progress bar instead of layer number/percentage, '
-                              'will be added to your GCode file and displayed on your printer (M117). '
-                              '(Default: %(default)s)')
+                        help='If --prog is provided, a progress bar instead of layer number/percentage, '
+                        'will be added to your GCode file and displayed on your printer (M117). '
+                        '(Default: %(default)s)')
 
     grp_progress.add_argument('--pwidth', metavar='int', type=int, default=17,
-                              help='Define the progress bar length in characters. You might need to '
-                              'adjust the default value. Allow two more chars for brackets. '
-                              'Example: [' + 'OOOOO'.ljust(18, '.') + ']. (Default: %(default)d)')
+                        help='Define the progress bar length in characters. You might need to '
+                        'adjust the default value. Allow two more chars for brackets. '
+                        'Example: [' + 'OOOOO'.ljust(18, '.') + ']. (Default: %(default)d)')
 
     grp_progress.add_argument('--pchar', metavar='str', type=str, default="O",
-                              help='Set progress bar character. '
-                              '(Default: %(default)s)')
+                        help='Set progress bar character. '
+                        '(Default: %(default)s)')
 
     try:
         args = parser.parse_args()
@@ -186,8 +186,8 @@ def main(args, conf):
 
             # Create a backup file, if the user wants it.
             try:
-                # if noback (no backup file) == True, then don't do it.
-                if args.noback is False:
+                # if user wants a backup file ...
+                if args.backup is True:
                     copy2(sourcefile, re.sub(r"\.gcode$", ".gcode.bak",
                           sourcefile, flags=re.IGNORECASE))
 
@@ -232,11 +232,13 @@ def main(args, conf):
             write_config_file(conf)
 
 
-def obscure_configuration():
+def obscure_configuration(strline):
     """
         Obscure _all_ settings
     """
-    return "; = 0\n"
+    # the easy way out:
+    strline = "; = 0\n"
+    return strline
 
 
 def process_gcodefile(args, sourcefile):
@@ -321,7 +323,7 @@ def process_gcodefile(args, sourcefile):
                     if strline == "; prusaslicer_config = begin\n":
                         break
                     if strline != "; prusaslicer_config = end\n":
-                        strline = obscure_configuration()
+                        strline = obscure_configuration(strline)
 
                     lines[len_lines-line_index-1] = strline
 
