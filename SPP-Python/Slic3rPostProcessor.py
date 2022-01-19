@@ -115,6 +115,17 @@ def argumentparser():
                         help='Create a backup file, if True is passed. '
                         '(Default: %(default)s)')
 
+    grp_viewer = parser.add_argument_group('GCode Viewer')
+    grp_viewer.add_argument('--startheader', metavar='str', type=str, default="; # # # # # # START Header",
+                        help='Start Header string (see Start GCode section). '
+                        '(Default: %(default)s)')
+    grp_viewer.add_argument('--cheat', action='store_true', default=False,
+                        help='This _cheat_ adds fake lines to the header of the GCode '
+                            'to trick the GCode-Viewer into thinking the GCode '
+                            'starts early. Thus, correctly displays the '
+                            'header GCode. '
+                            '(Default: %(default)s)')
+
     grp_counter = parser.add_argument_group('Counter settings')
     grp_counter.add_argument('--filecounter', action='store_true', default=False,
                         help='Add a prefix counter, if desired, to the output gcode file. '
@@ -274,7 +285,7 @@ def process_gcodefile(args, sourcefile):
         sys.exit(1)
 
     #
-    # Define list of progressbar percentage and characters
+    # Define list of progressbar percentage and cacters
     progress_list = [[0, "."], [.25, ":"], [.5, "+"], [.75, "#"]]
     # progress_list = [[.5, "o"]]
     # progress_list = [[0, "0"], [.2, "2"], [.4, "4"], [.6, "6"], [.8, "8"]]
@@ -352,6 +363,18 @@ def process_gcodefile(args, sourcefile):
             # Loop over GCODE file
             for i, strline in enumerate(lines):
                 i_line_after_edit = 0
+
+                if args.cheat:
+                    if strline.startswith(args.startheader):
+                        strline = args.startheader + '\n\n'\
+                            '; ## GCode Viewer Cheat:\n'\
+                            'G28 X0 Y0 Z0	; move X/Y/Z to endstops\n'\
+                            ';TYPE:Skirt/Brim\n'\
+                            ';WIDTH:0.45\n'\
+                            'G1 F1800\n'\
+                            'G1 X0.5 Y3 E1 ; skirt\n'\
+                            '; ## END Cheat\n\n'
+                        args.cheat = False
 
                 #
                 # PROGRESS-BAR in M117:
