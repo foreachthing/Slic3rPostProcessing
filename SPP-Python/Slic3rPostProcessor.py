@@ -52,6 +52,7 @@ from shutil import ReadError, copy2
 from os import path, remove, getenv
 from decimal import Decimal
 from datetime import datetime
+import pymsgbox
 
 # datetime object containing current date and time
 NOW = datetime.now()
@@ -76,6 +77,8 @@ def argumentparser():
         ' Since the default PrusaSlicer code tends to move'
         ' right through them - ouch!',
         epilog='Result: An Ultimaker 2 (and up) friedly GCode file.')
+
+    parser.error = myerror
 
     parser.add_argument('input_file', metavar='gcode-files', type=str, nargs='+',
                         help='One or more GCode file(s) to be processed '
@@ -130,6 +133,11 @@ def argumentparser():
                         help='Number of digits for counter.'
                         '(Default: %(default)s)')
 
+    grp_counter.add_argument('--easeinfactor', action='store', metavar='int', type=int, default=15,
+                        help='Scale Factor for ease in on Z. Z moves fast to this point then slows down.'
+                        'Scales the first layer height by this factor. '
+                        '(Default: %(default)s)')
+
     grp_progress = parser.add_argument_group('Progress bar settings')
     grp_progress.add_argument('--prog', action='store_true', default=False,
                         help='If --prog is provided, a progress bar instead of layer number/percentage, '
@@ -151,6 +159,16 @@ def argumentparser():
 
     except IOError as msg:
         parser.error(str(msg))
+        sys.exit(1)
+
+
+def myerror(message):
+    """
+        Custom Error message for argparse if something goes wrong.
+    """
+    print(message)
+    pymsgbox.alert(text=message, title="Post-Processing Script", button=pymsgbox.OK_TEXT)
+    sys.exit(1)
 
 
 def main(args, conf):
@@ -312,6 +330,7 @@ def process_gcodefile(args, sourcefile):
             argsremovecomments = args.rk
             argsremoveallcomments = args.rak
             argsprogchar = args.pchar
+            argseaseinfactor = args.easeinfactor
             fspeed = 3000
 
             # obscure configuration section, if parameter submitted:
@@ -444,13 +463,13 @@ def process_gcodefile(args, sourcefile):
 
                             # check height of FIRST_LAYER_HEIGHT
                             # to make ease-in a bit safer
-                            flh = format_number(
-                                Decimal(first_layer_height) * 15)
+                            scaled_layerheight = format_number(
+                                Decimal(first_layer_height) * argseaseinfactor)
 
                             # Then ease-in a bit ... this always gave me a heart attack!
-                            #   So, depending on first layer height, drop to 15 times
-                            #   first layer height in mm (this is hardcoded above),
-                            line += f'G0 F{str(fspeed)} Z{str(flh)} ; Then Z{str(flh)} at normal speed' + '\n'
+                            #   So, depending on first layer height, drop to 15 times (default)
+                            #   first layer height in mm, ...
+                            line += f'G0 F{str(fspeed)} Z{str(scaled_layerheight)} ; Then Z{str(scaled_layerheight)} at normal speed' + '\n'
 
                             #   then do the final Z-move at a third of the previous speed.
                             line += f'G0 F{str(format_number(float(fspeed)/3))} Z{str(first_layer_height)} ; ' \
@@ -559,5 +578,6 @@ def get_int(notint):
 
 ARGS = argumentparser()
 CONFIG = configparser.ConfigParser()
+
 
 main(ARGS, CONFIG)
