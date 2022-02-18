@@ -343,6 +343,7 @@ def process_gcodefile(args, sourcefile):
             argsprogchar = args.pchar
             argseaseinfactor = args.easeinfactor
             fspeed = 3000
+            bedysize = "200"
 
             # obscure configuration section, if parameter submitted:
             if argsobscureconfig:
@@ -365,14 +366,19 @@ def process_gcodefile(args, sourcefile):
                 i_line_after_edit = 0
 
                 if args.cheat:
+                    # get bed_max_y from gcode and subtract 5.
+                    # add to start gcode: ; Bed-Y-Size: {print_bed_max[1]}
+                    if strline.startswith("; Bed-Y-Size:"):
+                        bedysize = int(strline.split(":")[1].strip()) - 5
+
                     if strline.startswith(args.startheader):
                         strline = args.startheader + '\n\n'\
                             '; ## GCode Viewer Cheat:\n'\
                             'G28 X0 Y0 Z0	; move X/Y/Z to endstops\n'\
                             ';TYPE:Skirt/Brim\n'\
                             ';WIDTH:0.45\n'\
-                            'G1 F1800\n'\
-                            'G1 X0.5 Y3 E1 ; skirt\n'\
+                            'G1 F6000\n'\
+                            f'G1 X0.5 Y{str(bedysize)} E1 ; skirt\n'\
                             '; ## END Cheat\n\n'
                         args.cheat = False
 
@@ -475,10 +481,6 @@ def process_gcodefile(args, sourcefile):
 
                         # Replace G1 with G0: Non extruding move
                         grp2 = m_c.group(2).replace('G1', 'G0')
-
-                        # from CURA:
-                        # Also helps to avoid clips on the plate.
-                        line = f'G0 F{str(fspeed)} Y50 ; just go to some place safe\n'
 
                         if argsxy:
                             # add first line to move to XY only
