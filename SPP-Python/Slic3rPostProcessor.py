@@ -51,18 +51,7 @@ import ntpath
 from shutil import ReadError, copy2
 from os import path, remove, getenv
 from decimal import Decimal
-from datetime import datetime
 import pymsgbox
-
-# datetime object containing current date and time
-NOW = datetime.now()
-
-# Global Regex
-RGX_FIND_NUMBER = r"-?\d*\.?\d+"
-
-# Config file full path; where _THIS_ file is
-CONFIG_FILE = ntpath.join(
-    f'{path.dirname(path.abspath(__file__))}', 'spp_config.cfg')
 
 
 def argumentparser():
@@ -79,6 +68,14 @@ def argumentparser():
         epilog='Result: An Ultimaker 2 (and up) friedly GCode file.')
 
     parser.error = myerror
+
+    ## get values from config file
+    conf = configparser.ConfigParser()
+    if path.exists(ppsc.configfile):
+        conf.read(ppsc.configfile)
+        ppsc.fileincrement = conf.getint('DEFAULT', 'FileIncrement', fallback=0)
+        ppsc.counterdigits = conf.getint('DEFAULT', 'CounterDigits', fallback=6)
+    ##
 
     parser.add_argument('input_file', metavar='gcode-files', type=str, nargs='+',
                         help='One or more GCode file(s) to be processed '
@@ -130,7 +127,7 @@ def argumentparser():
     grp_counter.add_argument('--filecounter', action='store_true', default=False,
                         help='Add a prefix counter, if desired, to the output gcode file. '
                         'Default counter length is 6 digits (000001-999999_file.gcode). '
-                        '(Default: %(default)s)')
+                        f'Currently at {ppsc.fileincrement}. (Default: %(default)s)')
 
     grp_counter.add_argument('--rev', action='store_true', default=False,
                         help='If True, adds counter in reverse, down to zero and it will restart '
@@ -141,7 +138,8 @@ def argumentparser():
                         help='Reset counter to this [int]. Or edit spp_config.cfg directly.')
 
     grp_counter.add_argument('--digits', action='store', metavar='int', type=int, default=6,
-                        help='Number of digits for counter.'
+                        help='Number of digits for counter. '
+                        f'Currently set to: {ppsc.counterdigits}. '
                         '(Default: %(default)s)')
 
     grp_counter.add_argument('--easeinfactor', action='store', metavar='int', type=int, default=15,
@@ -187,17 +185,7 @@ def main(args, conf):
         MAIN
     """
 
-    # check if config file exists; else create it with default 0
-    conf = configparser.ConfigParser()
-    if not path.exists(CONFIG_FILE):
-        conf['DEFAULT'] = {'FileIncrement': 0}
-        write_config_file(conf)
-    else:
-        if args.setcounter is not None:
-            reset_counter(conf, args.setcounter)
-
-        conf.read(CONFIG_FILE)
-        fileincrement = conf.getint('DEFAULT', 'FileIncrement', fallback=0)
+    get_configuration(args)
 
     for sourcefile in args.input_file:
 
@@ -205,13 +193,13 @@ def main(args, conf):
         if path.exists(sourcefile):
             # counter increment
             if args.rev:
-                fileincrement -= 1
-                if fileincrement < 0:
-                    fileincrement = (10 ** args.digits) - 1
+                ppsc.fileincrement -= 1
+                if ppsc.fileincrement < 0:
+                    ppsc.fileincrement = (10 ** ppsc.counterdigits) - 1
             else:
-                fileincrement += 1
-                if fileincrement >= (10 ** args.digits) - 1:
-                    fileincrement = 0
+                ppsc.fileincrement += 1
+                if ppsc.fileincrement >= (10 ** ppsc.counterdigits) - 1:
+                    ppsc.fileincrement = 0
 
             # Create a backup file, if the user wants it.
             try:
@@ -234,7 +222,7 @@ def main(args, conf):
             if args.filecounter:
 
                 # Create Counter String, zero-padded accordingly
-                counter = str(fileincrement).zfill(args.digits)
+                counter = str(ppsc.fileincrement).zfill(ppsc.counterdigits)
 
                 if args.notprusaslicer is False:
 
@@ -257,7 +245,8 @@ def main(args, conf):
 
             #
             # write settings back
-            conf['DEFAULT'] = {'FileIncrement': fileincrement}
+            conf.set('DEFAULT', 'FileIncrement', str(ppsc.fileincrement))
+            conf.set('DEFAULT', 'CounterDigits', str(ppsc.counterdigits))
             write_config_file(conf)
 
 
@@ -291,7 +280,6 @@ def process_gcodefile(args, sourcefile):
     # progress_list = [[0, "0"], [.2, "2"], [.4, "4"], [.6, "6"], [.8, "8"]]
     #
 
-    rgx_find_layer = r"^M117 Layer (\d+)"
     first_layer_height = 0
     b_edited_line = False
     b_skip_all = False
@@ -321,7 +309,7 @@ def process_gcodefile(args, sourcefile):
                     is_config_comment = False
 
             # Find last Layer:
-            rgxm117 = re.search(rgx_find_layer, strline, flags=re.IGNORECASE)
+            rgxm117 = re.search(regex.findlayer, strline, flags=re.IGNORECASE)
             if rgxm117:
                 # Found M117 Layer xy
                 number_of_layers = int(rgxm117.group(1))
@@ -384,7 +372,7 @@ def process_gcodefile(args, sourcefile):
 
                 #
                 # PROGRESS-BAR in M117:
-                rgxm117 = re.search(rgx_find_layer, strline,
+                rgxm117 = re.search(regex.findlayer, strline,
                                     flags=re.IGNORECASE)
 
                 if rgxm117 and argprogress:
@@ -439,7 +427,7 @@ def process_gcodefile(args, sourcefile):
                         # G1 Z.2 F7200 ; move to next layer (0)
                         # and replace with empty string
                         layerzero = re.search(
-                            rf'^(?:G1)\s(?:(?:Z)([-+]?\d*(?:\.\d+)))\s(?:F({RGX_FIND_NUMBER})?)(?:.*layer \(0\).*)$', strline, flags=re.IGNORECASE)
+                            rf'^(?:G1)\s(?:(?:Z)([-+]?\d*(?:\.\d+)))\s(?:F({regex.findnumber})?)(?:.*layer \(0\).*)$', strline, flags=re.IGNORECASE)
                         if layerzero:
                             # Get the speed for moving to Z?
                             fspeed = format_number(Decimal(layerzero.group(2)))
@@ -454,13 +442,13 @@ def process_gcodefile(args, sourcefile):
                     line = strline
 
                     # NOT WORKING ANYMORE! Thanks....
-                    # m_c = re.search(rf'^((G1\sX{RGX_FIND_NUMBER}\sY{RGX_FIND_NUMBER})\s.*(?:F({RGX_FIND_NUMBER})))', strline, flags=re.IGNORECASE)
+                    # m_c = re.search(rf'^((G1\sX{regex.findnumber}\sY{regex.findnumber})\s.*(?:F({regex.findnumber})))', strline, flags=re.IGNORECASE)
                     #
                     # ARGH! PS, make up your mind! Stop changing that without telling me/us, please!
                     # Day after PS changes **** again!!!!
                     # G1 X92.706 Y96.155 ; move to first skirt point
                     m_c = re.search(
-                        rf'^((G1\sX{RGX_FIND_NUMBER}\sY{RGX_FIND_NUMBER})\s.*(?:(move to first).*(?:point)))', strline, flags=re.IGNORECASE)
+                        rf'^((G1\sX{regex.findnumber}\sY{regex.findnumber})\s.*(?:(move to first).*(?:point)))', strline, flags=re.IGNORECASE)
                     if m_c:
                         # In 2.4.0b1 something changed:
                         # It was:
@@ -552,7 +540,10 @@ def write_config_file(config):
     """
         Write Config File
     """
-    config.write(open(CONFIG_FILE, 'w+', encoding='UTF-8'))
+    #config.write(open(ppsc.configfile, 'w+', encoding='UTF-8'))
+
+    with open(ppsc.configfile, 'w', encoding='UTF-8') as configfile:
+        config.write(configfile)
 
 
 # Reset counter
@@ -560,8 +551,10 @@ def reset_counter(conf, set_counter_to):
     """
         Reset Counter
     """
-    if path.exists(CONFIG_FILE):
-        conf['DEFAULT'] = {'FileIncrement': set_counter_to}
+    if path.exists(ppsc.configfile):
+
+        conf.set('DEFAULT', 'FileIncrement', str(set_counter_to))
+
         write_config_file(conf)
 
 
@@ -601,8 +594,59 @@ def get_int(notint):
     return zvalue
 
 
-ARGS = argumentparser()
-CONFIG = configparser.ConfigParser()
+def get_configuration(args):
+    """
+        GET/SET configuration
+    """
+    # check if config file exists; else create it with default 0
+
+    conf = configparser.ConfigParser()
+    if not path.exists(ppsc.configfile):
+
+        conf.set('DEFAULT', 'FileIncrement', '0')
+        conf.set('DEFAULT', 'CounterDigits', str(args.digits))
+
+        write_config_file(conf)
+    else:
+        if args.setcounter is not None:
+            reset_counter(conf, args.setcounter)
+
+        conf.read(ppsc.configfile)
+        ppsc.fileincrement = conf.getint('DEFAULT', 'FileIncrement', fallback=0)
+
+        if str(args.digits) != conf.getint('DEFAULT', 'CounterDigits', fallback=6):
+            ppsc.counterdigits = args.digits
+        else:
+            ppsc.counterdigits = conf.getint('DEFAULT', 'CounterDigits', fallback=6)
+
+class REGEX():
+    """
+        Class for REGEX
+    """
+    def __init__(self):
+        self.findnumber = r"-?\d*\.?\d+"
+        self.findlayer = r"^M117 Layer (\d+)"
 
 
-main(ARGS, CONFIG)
+class PPSConfig(object):
+    """
+        Class instead of of global vars
+    """
+    def __init__(self):
+        self.fileincrement = 0
+        self.counterdigits = 0
+        self.configfile = None
+
+
+if __name__ == "__main__":
+    ppsc = PPSConfig()
+    regex = REGEX()
+
+    # Config file full path; where _THIS_ file is
+    ppsc.configfile = ntpath.join(
+        f'{path.dirname(path.abspath(__file__))}', 'spp_config.cfg')
+
+    ARGS = argumentparser()
+    CONFIG = configparser.ConfigParser()
+
+    main(ARGS, CONFIG)
