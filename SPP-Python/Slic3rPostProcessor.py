@@ -366,7 +366,7 @@ def process_gcodefile(args, sourcefile):
                             ';TYPE:Skirt/Brim\n'\
                             ';WIDTH:0.45\n'\
                             'G1 F6000\n'\
-                            f'G1 X0.5 Y{str(bedysize)} E1 ; skirt\n'\
+                            f'G1 X0.5 Y{str(bedysize)} E0.01 ; skirt\n'\
                             '; ## END Cheat\n\n'
                         args.cheat = False
 
@@ -540,7 +540,6 @@ def write_config_file(config):
     """
         Write Config File
     """
-    #config.write(open(ppsc.configfile, 'w+', encoding='UTF-8'))
 
     with open(ppsc.configfile, 'w', encoding='UTF-8') as configfile:
         config.write(configfile)
