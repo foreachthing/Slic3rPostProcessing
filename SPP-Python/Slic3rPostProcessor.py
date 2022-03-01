@@ -73,8 +73,10 @@ def argumentparser():
     conf = configparser.ConfigParser()
     if path.exists(ppsc.configfile):
         conf.read(ppsc.configfile)
-        ppsc.fileincrement = conf.getint('DEFAULT', 'FileIncrement', fallback=0)
-        ppsc.counterdigits = conf.getint('DEFAULT', 'CounterDigits', fallback=6)
+        ppsc.fileincrement = conf.getint(
+            'DEFAULT', 'FileIncrement', fallback=0)
+        ppsc.counterdigits = conf.getint(
+            'DEFAULT', 'CounterDigits', fallback=6)
     ##
 
     parser.add_argument('input_file', metavar='gcode-files', type=str, nargs='+',
@@ -117,10 +119,11 @@ def argumentparser():
                         help='Start Header string (see Start GCode section). '
                         '(Default: %(default)s)')
     grp_viewer.add_argument('--cheat', action='store_true', default=False,
-                        help='This _cheat_ adds fake lines to the header of the GCode '
+                            help='This _cheat_ adds fake lines to the header of the GCode '
                             'to trick the GCode-Viewer into thinking the GCode '
-                            'starts early. Thus, correctly displays the '
-                            'header GCode. '
+                            'starts early. Thus, correctly displays the header GCode. '
+                            'Also add "; Bed-Y-Size: {print_bed_max[1]}" (without "") '
+                            ' to the header. '
                             '(Default: %(default)s)')
 
     grp_counter = parser.add_argument_group('Counter settings')
@@ -176,7 +179,8 @@ def myerror(message):
         Custom Error message for argparse if something goes wrong.
     """
     print(message)
-    pymsgbox.alert(text=message, title="Post-Processing Script", button=pymsgbox.OK_TEXT)
+    pymsgbox.alert(text=message,
+        title="Post-Processing Script", button=pymsgbox.OK_TEXT)
     sys.exit(1)
 
 
@@ -356,6 +360,7 @@ def process_gcodefile(args, sourcefile):
                 if args.cheat:
                     # get bed_max_y from gcode and subtract 5.
                     # add to start gcode: ; Bed-Y-Size: {print_bed_max[1]}
+                    # Printer will do a little move but nothing major.
                     if strline.startswith("; Bed-Y-Size:"):
                         bedysize = int(strline.split(":")[1].strip()) - 5
 
@@ -366,7 +371,7 @@ def process_gcodefile(args, sourcefile):
                             ';TYPE:Skirt/Brim\n'\
                             ';WIDTH:0.45\n'\
                             'G1 F6000\n'\
-                            f'G1 X0.5 Y{str(bedysize)} E0.01 ; skirt\n'\
+                            f'G1 X0.5 Y{str(bedysize)} E1 ; skirt\n'\
                             '; ## END Cheat\n\n'
                         args.cheat = False
 
