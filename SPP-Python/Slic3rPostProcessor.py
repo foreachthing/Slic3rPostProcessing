@@ -77,6 +77,8 @@ def argumentparser():
             'DEFAULT', 'FileIncrement', fallback=0)
         ppsc.counterdigits = conf.getint(
             'DEFAULT', 'CounterDigits', fallback=6)
+        ppsc.cheatplaceholder = conf.get(
+            'DEFAULT', 'CheatPlaceholder', fallback="; insert CHEAT here")
     ##
 
     parser.add_argument('input_file', metavar='gcode-files', type=str, nargs='+',
@@ -115,16 +117,17 @@ def argumentparser():
                         '(Default: %(default)s)')
 
     grp_viewer = parser.add_argument_group('GCode Viewer')
-    grp_viewer.add_argument('--startheader', metavar='str', type=str, default="; # # # # # # START Header",
-                        help='Start Header string (see Start GCode section). '
+    grp_viewer.add_argument('--cheatplaceholder', metavar='str', type=str, default="; insert CHEAT here",
+                            help='Insert Cheat here, at this placeholder. Add the string above '
+                            f'to your Start G-Code section. Currently set to {ppsc.cheatplaceholder}. '
                         '(Default: %(default)s)')
     grp_viewer.add_argument('--cheat', action='store_true', default=False,
-                            help='This _cheat_ adds fake lines to the header of the GCode '
-                            'to trick the GCode-Viewer into thinking the GCode '
-                            'starts early. Thus, correctly displays the header GCode. '
-                            'Also add "; Bed-Y-Size: {print_bed_max[1]}" (without "") '
-                            ' to the header. '
-                            '(Default: %(default)s)')
+                        help='This _cheat_ adds fake lines to the header of the GCode '
+                        'to trick the GCode-Viewer into thinking the GCode '
+                        'starts early. Thus, correctly displays the header GCode. '
+                        'Also add "; Bed-Y-Size: {print_bed_max[1]}" (without "") '
+                        ' to the header. '
+                        '(Default: %(default)s)')
 
     grp_counter = parser.add_argument_group('Counter settings')
     grp_counter.add_argument('--filecounter', action='store_true', default=False,
@@ -251,6 +254,8 @@ def main(args, conf):
             # write settings back
             conf.set('DEFAULT', 'FileIncrement', str(ppsc.fileincrement))
             conf.set('DEFAULT', 'CounterDigits', str(ppsc.counterdigits))
+            conf.set('DEFAULT', 'CheatPlaceholder', str(ppsc.cheatplaceholder))
+
             write_config_file(conf)
 
 
@@ -364,15 +369,16 @@ def process_gcodefile(args, sourcefile):
                     if strline.startswith("; Bed-Y-Size:"):
                         bedysize = int(strline.split(":")[1].strip()) - 5
 
-                    if strline.startswith(args.startheader):
-                        strline = args.startheader + '\n\n'\
-                            '; ## GCode Viewer Cheat:\n'\
+                    if strline.startswith(args.cheatplaceholder):
+                        # replace line with this "cheat"
+                        strline = '; ## GCode Viewer Cheat:\n'\
                             'G28 X0 Y0 Z0	; move X/Y/Z to endstops\n'\
+                            'G1 E1 F1\n'\
                             ';TYPE:Skirt/Brim\n'\
                             ';WIDTH:0.45\n'\
-                            'G1 F6000\n'\
-                            f'G1 X0.5 Y{str(bedysize)} E1 ; skirt\n'\
-                            '; ## END Cheat\n\n'
+                            'G0 F6000\n'\
+                            f'G1 X3 Y{str(bedysize)} E1 ; skirt\n'\
+                            '; ## END Cheat\n'
                         args.cheat = False
 
                 #
@@ -609,6 +615,7 @@ def get_configuration(args):
 
         conf.set('DEFAULT', 'FileIncrement', '0')
         conf.set('DEFAULT', 'CounterDigits', str(args.digits))
+        conf.set('DEFAULT', 'CheatPlaceholder', str(args.cheatplaceholder))
 
         write_config_file(conf)
     else:
@@ -616,12 +623,17 @@ def get_configuration(args):
             reset_counter(conf, args.setcounter)
 
         conf.read(ppsc.configfile)
-        ppsc.fileincrement = conf.getint('DEFAULT', 'FileIncrement', fallback=0)
+        ppsc.fileincrement = conf.getint(
+            'DEFAULT', 'FileIncrement', fallback=0)
+        ppsc.cheatplaceholder = conf.get(
+            'DEFAULT', 'CheatPlaceholder', fallback="; insert CHEAT here")
 
         if str(args.digits) != conf.getint('DEFAULT', 'CounterDigits', fallback=6):
             ppsc.counterdigits = args.digits
         else:
-            ppsc.counterdigits = conf.getint('DEFAULT', 'CounterDigits', fallback=6)
+            ppsc.counterdigits = conf.getint(
+                'DEFAULT', 'CounterDigits', fallback=6)
+
 
 class REGEX():
     """
@@ -639,6 +651,7 @@ class PPSConfig(object):
     def __init__(self):
         self.fileincrement = 0
         self.counterdigits = 0
+        self.cheatplaceholder = ""
         self.configfile = None
 
 
