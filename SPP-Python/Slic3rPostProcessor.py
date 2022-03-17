@@ -2,11 +2,6 @@
 """ Post Processing Script for Slic3r, PrusaSlicer and SuperSlicer.
     This will make the curent start behaviour more like Curas'.1
 
-
-    TODO:
-    NO "Cura-move"-option!
-
-
     New behaviour:
     - Heat up, down nozzle and ooze at your discretion.
     - Move to the first entry point on XYZ simultaneously.
@@ -21,6 +16,7 @@
     - Reverse counter
     - use with non PrusaSlicer Slicer
     - Add sort-of progressbar as M117 command
+    - Option to disable Cura-move with '--nomove' parameter
 
     Current behaviour:
     1. Heat up, down nozzle and ooze at your discretion.
