@@ -258,3 +258,4 @@ SPP-Python/14864.3mf
 SPP-Python/Slic3rPostProcessor.py.bak*
 SPP-Python/config.ini
 SPP-Python/*.bak_*
+SPP-Python/recopy_gcode.bat
