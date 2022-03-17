@@ -1,6 +1,11 @@
 # /usr/bin/python3
 """ Post Processing Script for Slic3r, PrusaSlicer and SuperSlicer.
-    This will make the curent start behaviour more like Curas'.
+    This will make the curent start behaviour more like Curas'.1
+
+
+    TODO:
+    NO "Cura-move"-option!
+
 
     New behaviour:
     - Heat up, down nozzle and ooze at your discretion.
@@ -69,7 +74,7 @@ def argumentparser():
 
     parser.error = myerror
 
-    ## get values from config file
+    # get values from config file
     conf = configparser.ConfigParser()
     if path.exists(ppsc.configfile):
         conf.read(ppsc.configfile)
@@ -90,27 +95,33 @@ def argumentparser():
                         'PrusaSlicer. Leave default (%(default)s) '
                         'if you\'re using PrusaSlicer.')
 
-    parser.add_argument('--xy', action='store_true', default=False,
-                        help='If --xy is provided, the printer will move to X and Y '
-                        'of first start point, then drop the nozzle to Z at a third '
-                        'the normal speed. '
-                        '(Default: %(default)s)')
+    move_x_group = parser.add_mutually_exclusive_group()
+    move_x_group.add_argument('--xy', action='store_true', default=False,
+                              help='If --xy is provided, the printer will move to X and Y '
+                              'of first start point, then drop the nozzle to Z at a third '
+                              'the normal speed. '
+                              '(Default: %(default)s)')
 
-    mx_group = parser.add_mutually_exclusive_group()
-    mx_group.add_argument('--oc', action='store_true', default=False,
-                        help='WIP! Use at own risk - does not yet produce valid PS-gcode.\n'
-                        'Obscures Configuration at end of file with bogus values. '
-                        '(Default: %(default)s)')
+    move_x_group.add_argument('--nomove', action='store_true', default=False,
+                              help='If --nomove is provided, no changes to the '
+                              'Start-GCode will be made. '
+                              '(Default: %(default)s)')
 
-    mx_group.add_argument('--rk', action='store_true', default=False,
-                        help='Removes comments from end of line, except '
-                        'configuration and pure comments. '
-                        '(Default: %(default)s)')
+    comment_x_group = parser.add_mutually_exclusive_group()
+    comment_x_group.add_argument('--oc', action='store_true', default=False,
+                                 help='WIP! Use at own risk - does not yet produce valid PS-gcode.\n'
+                                 'Obscures Configuration at end of file with bogus values. '
+                                 '(Default: %(default)s)')
 
-    mx_group.add_argument('--rak', action='store_true', default=False,
-                        help='Removes all comments! Note: PrusaSlicers GCode preview '
-                        'might not render file correctly. '
-                        '(Default: %(default)s)')
+    comment_x_group.add_argument('--rk', action='store_true', default=False,
+                                 help='Removes comments from end of line, except '
+                                 'configuration and pure comments. '
+                                 '(Default: %(default)s)')
+
+    comment_x_group.add_argument('--rak', action='store_true', default=False,
+                                 help='Removes all comments! Note: PrusaSlicers GCode preview '
+                                 'might not render file correctly. '
+                                 '(Default: %(default)s)')
 
     parser.add_argument('--backup', action='store_true', default=False,
                         help='Create a backup file, if True is passed. '
@@ -120,53 +131,53 @@ def argumentparser():
     grp_viewer.add_argument('--cheatplaceholder', metavar='str', type=str, default="; insert CHEAT here",
                             help='Insert Cheat here, at this placeholder. Add the string above '
                             f'to your Start G-Code section. Currently set to {ppsc.cheatplaceholder}. '
-                        '(Default: %(default)s)')
+                            '(Default: %(default)s)')
     grp_viewer.add_argument('--cheat', action='store_true', default=False,
-                        help='This _cheat_ adds fake lines to the header of the GCode '
-                        'to trick the GCode-Viewer into thinking the GCode '
-                        'starts early. Thus, correctly displays the header GCode. '
-                        'Also add "; Bed-Y-Size: {print_bed_max[1]}" (without "") '
-                        ' to the header. '
-                        '(Default: %(default)s)')
+                            help='This _cheat_ adds fake lines to the header of the GCode '
+                            'to trick the GCode-Viewer into thinking the GCode '
+                            'starts early. Thus, correctly displays the header GCode. '
+                            'Also add "; Bed-Y-Size: {print_bed_max[1]}" (without "") '
+                            ' to the header. '
+                            '(Default: %(default)s)')
 
     grp_counter = parser.add_argument_group('Counter settings')
     grp_counter.add_argument('--filecounter', action='store_true', default=False,
-                        help='Add a prefix counter, if desired, to the output gcode file. '
-                        'Default counter length is 6 digits (000001-999999_file.gcode). '
-                        f'Currently at {ppsc.fileincrement}. (Default: %(default)s)')
+                             help='Add a prefix counter, if desired, to the output gcode file. '
+                             'Default counter length is 6 digits (000001-999999_file.gcode). '
+                             f'Currently at {ppsc.fileincrement}. (Default: %(default)s)')
 
     grp_counter.add_argument('--rev', action='store_true', default=False,
-                        help='If True, adds counter in reverse, down to zero and it will restart '
-                        'at 999999 if -setcounter was not specified otherwise.'
-                        '(Default: %(default)s)')
+                             help='If True, adds counter in reverse, down to zero and it will restart '
+                             'at 999999 if -setcounter was not specified otherwise.'
+                             '(Default: %(default)s)')
 
     grp_counter.add_argument('--setcounter', action='store', metavar='int', type=int,
-                        help='Reset counter to this [int]. Or edit spp_config.cfg directly.')
+                             help='Reset counter to this [int]. Or edit spp_config.cfg directly.')
 
     grp_counter.add_argument('--digits', action='store', metavar='int', type=int, default=6,
-                        help='Number of digits for counter. '
-                        f'Currently set to: {ppsc.counterdigits}. '
-                        '(Default: %(default)s)')
+                             help='Number of digits for counter. '
+                             f'Currently set to: {ppsc.counterdigits}. '
+                             '(Default: %(default)s)')
 
     grp_counter.add_argument('--easeinfactor', action='store', metavar='int', type=int, default=15,
-                        help='Scale Factor for ease in on Z. Z moves fast to this point then slows down.'
-                        'Scales the first layer height by this factor. '
-                        '(Default: %(default)s)')
+                             help='Scale Factor for ease in on Z. Z moves fast to this point then slows down.'
+                             'Scales the first layer height by this factor. '
+                             '(Default: %(default)s)')
 
     grp_progress = parser.add_argument_group('Progress bar settings')
     grp_progress.add_argument('--prog', action='store_true', default=False,
-                        help='If --prog is provided, a progress bar instead of layer number/percentage, '
-                        'will be added to your GCode file and displayed on your printer (M117). '
-                        '(Default: %(default)s)')
+                              help='If --prog is provided, a progress bar instead of layer number/percentage, '
+                              'will be added to your GCode file and displayed on your printer (M117). '
+                              '(Default: %(default)s)')
 
     grp_progress.add_argument('--pwidth', metavar='int', type=int, default=17,
-                        help='Define the progress bar length in characters. You might need to '
-                        'adjust the default value. Allow two more chars for brackets. '
-                        'Example: [' + 'OOOOO'.ljust(18, '.') + ']. (Default: %(default)d)')
+                              help='Define the progress bar length in characters. You might need to '
+                              'adjust the default value. Allow two more chars for brackets. '
+                              'Example: [' + 'OOOOO'.ljust(18, '.') + ']. (Default: %(default)d)')
 
     grp_progress.add_argument('--pchar', metavar='str', type=str, default="O",
-                        help='Set progress bar character. '
-                        '(Default: %(default)s)')
+                              help='Set progress bar character. '
+                              '(Default: %(default)s)')
 
     try:
         args = parser.parse_args()
@@ -183,7 +194,7 @@ def myerror(message):
     """
     print(message)
     pymsgbox.alert(text=message,
-        title="Post-Processing Script", button=pymsgbox.OK_TEXT)
+                   title="Post-Processing Script", button=pymsgbox.OK_TEXT)
     sys.exit(1)
 
 
@@ -333,6 +344,9 @@ def process_gcodefile(args, sourcefile):
             # Store args in vars - easier to type, or change, add...
             pwidth = int(args.pwidth)
             argsxy = args.xy
+            argsnocuramove = args.nomove
+            argscheat = args.cheat
+            argscheatplaceholder = args.cheatplaceholder
             argsobscureconfig = args.oc
             argprogress = args.prog
             argsremovecomments = args.rk
@@ -362,24 +376,25 @@ def process_gcodefile(args, sourcefile):
             for i, strline in enumerate(lines):
                 i_line_after_edit = 0
 
-                if args.cheat:
-                    # get bed_max_y from gcode and subtract 5.
-                    # add to start gcode: ; Bed-Y-Size: {print_bed_max[1]}
-                    # Printer will do a little move but nothing major.
-                    if strline.startswith("; Bed-Y-Size:"):
-                        bedysize = int(strline.split(":")[1].strip()) - 5
+                # get bed_max_y from gcode and subtract 5.
+                # add to start gcode: ; Bed-Y-Size: {print_bed_max[1]}
+                # Printer will do a little move but nothing major.
+                if strline.startswith("; Bed-Y-Size:"):
+                    bedysize = int(strline.split(":")[1].strip()) - 5
 
-                    if strline.startswith(args.cheatplaceholder):
+                if strline.startswith(argscheatplaceholder):
+                    if argscheat:
                         # replace line with this "cheat"
                         strline = '; ## GCode Viewer Cheat:\n'\
-                            'G28 X0 Y0 Z0	; move X/Y/Z to endstops\n'\
                             'G1 E1 F1\n'\
                             ';TYPE:Skirt/Brim\n'\
                             ';WIDTH:0.45\n'\
                             'G0 F6000\n'\
-                            f'G1 X3 Y{str(bedysize)} E1 ; skirt\n'\
+                            f'G1 X0 Y{str(bedysize)} E1 ; skirt\n'\
                             '; ## END Cheat\n'
-                        args.cheat = False
+                        argscheat = False
+                    else:
+                        strline = ''
 
                 #
                 # PROGRESS-BAR in M117:
@@ -434,7 +449,7 @@ def process_gcodefile(args, sourcefile):
                             Decimal(rgx1stlayer.group(1)))
 
                 else:
-                    if strline and first_layer_height != 0 and b_skip_removed is False and b_skip_all is False:
+                    if strline and first_layer_height != 0 and not b_skip_removed and not b_skip_all and not argsnocuramove:
                         # G1 Z.2 F7200 ; move to next layer (0)
                         # and replace with empty string
                         layerzero = re.search(
@@ -449,13 +464,9 @@ def process_gcodefile(args, sourcefile):
                             b_edited_line = True
                             b_skip_removed = True
 
-                if b_edited_line and b_skip_all is False:
+                if b_edited_line and not b_skip_all and not argsnocuramove:
                     line = strline
 
-                    # NOT WORKING ANYMORE! Thanks....
-                    # m_c = re.search(rf'^((G1\sX{regex.findnumber}\sY{regex.findnumber})\s.*(?:F({regex.findnumber})))', strline, flags=re.IGNORECASE)
-                    #
-                    # ARGH! PS, make up your mind! Stop changing that without telling me/us, please!
                     # Day after PS changes **** again!!!!
                     # G1 X92.706 Y96.155 ; move to first skirt point
                     m_c = re.search(
@@ -639,6 +650,7 @@ class REGEX():
     """
         Class for REGEX
     """
+
     def __init__(self):
         self.findnumber = r"-?\d*\.?\d+"
         self.findlayer = r"^M117 Layer (\d+)"
@@ -648,6 +660,7 @@ class PPSConfig(object):
     """
         Class instead of of global vars
     """
+
     def __init__(self):
         self.fileincrement = 0
         self.counterdigits = 0
