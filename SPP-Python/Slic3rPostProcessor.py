@@ -151,6 +151,10 @@ def argumentparser():
                               'will be added to your GCode file and displayed on your printer (M117). '
                               '(Default: %(default)s)')
 
+    grp_progress.add_argument('--proglayer', action='store_true', default=False,
+                              help='If --proglayer is provided, progress is reported as layer number/of layers, '
+                              '(Default: %(default)s)')
+
     grp_progress.add_argument('--pwidth', metavar='int', type=int, default=17,
                               help='Define the progress bar length in characters. You might need to '
                               'adjust the default value. Allow two more chars for brackets. '
@@ -327,12 +331,12 @@ def process_gcodefile(args, sourcefile):
             argsnocuramove = args.nomove
             argsobscureconfig = args.oc
             argprogress = args.prog
+            argprogresslayer = args.proglayer
             argsremovecomments = args.rk
             argsremoveallcomments = args.rak
             argsprogchar = args.pchar
             argseaseinfactor = args.easeinfactor
             fspeed = 3000
-            bedysize = "200"
 
             # obscure configuration section, if parameter submitted:
             if argsobscureconfig:
@@ -354,17 +358,12 @@ def process_gcodefile(args, sourcefile):
             for i, strline in enumerate(lines):
                 i_line_after_edit = 0
 
-                # get bed_max_y from gcode and subtract 5.
-                # add to start gcode: ; Bed-Y-Size: {print_bed_max[1]}
-                # Printer will do a little move but nothing major.
-                if strline.startswith("; Bed-Y-Size:"):
-                    bedysize = int(strline.split(":")[1].strip()) - 5
-
                 #
                 # PROGRESS-BAR in M117:
                 rgxm117 = re.search(regex.findlayer, strline,
                                     flags=re.IGNORECASE)
 
+                # if --prog was passed:
                 if rgxm117 and argprogress:
                     current_layer = int(rgxm117.group(1))
 
@@ -393,14 +392,23 @@ def process_gcodefile(args, sourcefile):
                     # assemble the progressbar (M117)
                     strline = rf'M117 [{argsprogchar * filled_length + strlcase + "." * (p2width - filled_length)}];' + '\n'
 
+                # if --prog was NOT passed
                 elif rgxm117:
                     current_layer = int(rgxm117.group(1))
                     tmppercentage = f"{((current_layer / number_of_layers) * 100):#.3g}"
                     percentage = tmppercentage[:3] \
                         if tmppercentage.endswith('.') else tmppercentage[:4]
-                    # strline = rf'M117 Layer {current_layer}, {percentage} %;' + '\n'
-                    strline = str.format(
-                        'M117 Layer {0}, {1}%;' + '\n', current_layer, percentage)
+
+                    if current_layer == 0:
+                        strline = str.format(
+                            'M117 First Layer' + '\n')
+                    else:
+                        if argprogresslayer:
+                            strline = str.format(
+                                'M117 Layer {0} of {1}' + '\n', current_layer + 1, number_of_layers + 1)
+                        else:
+                            strline = str.format(
+                                'M117 Layer {0}, {1}%' + '\n', current_layer + 1, percentage)
 
                 if strline and first_layer_height == 0:
                     # if strline and b_found_z == False and b_skip_all == False:
