@@ -85,9 +85,11 @@ def argumentparser():
                         '- at least one is required.')
 
     parser.add_argument('--notprusaslicer', action='store_true', default=False,
-                        help='Set to False for any other slicer (based on Slic3r) than '
-                        'PrusaSlicer. Leave default (%(default)s) '
-                        'if you\'re using PrusaSlicer.')
+                        help='Pass argument for any other slicer (based on Slic3r) than '
+                        'PrusaSlicer.')
+
+    parser.add_argument('--craftwaretypes', action='store_true', default=False,
+                        help='Pass argument if you want to view GCode in Craftware.')
 
     move_x_group = parser.add_mutually_exclusive_group()
     move_x_group.add_argument('--xy', action='store_true', default=False,
@@ -337,6 +339,7 @@ def process_gcodefile(args, sourcefile):
             argsprogchar = args.pchar
             argseaseinfactor = args.easeinfactor
             fspeed = 3000
+            argscraftwaretypes = args.craftwaretypes
 
             # obscure configuration section, if parameter submitted:
             if argsobscureconfig:
@@ -493,6 +496,29 @@ def process_gcodefile(args, sourcefile):
                         i_line_after_edit = i + 1
 
                     strline = line
+
+                if argscraftwaretypes:
+                    if strline.startswith(";TYPE:"):
+                        if 'Skirt/Brim' in strline:
+                            strline = ';segType:Skirt\n;TYPE:Skirt/Brim\n'
+
+                        elif 'Support material interface' in strline:
+                            strline = ';segType:SoftSupport\n;TYPE:Support material interface\n'
+
+                        elif 'Support material' in strline:
+                            strline = ';segType:Support\n;TYPE:Support material\n'
+
+                        elif ':Solid infill' in strline or 'Internal infill' in strline:
+                            strline = ';segType:Infill\n;TYPE:Solid infill\n'
+
+                        elif 'Gap fill' in strline:
+                            strline = ';segType:Perimeter\n;TYPE:Gap fill\n'
+
+                        elif 'External perimeter' in strline:
+                            strline = ';segType:Perimeter\n;TYPE:External perimeter\n'
+
+                        elif 'Perimeter' in strline:
+                            strline = ';segType:Loop\n;TYPE:Perimeter\n'
 
                 if (i + 1) > i_line_after_edit and argsremovecomments and b_start_remove_comments:
                     if strline.startswith("; prusaslicer_config"):

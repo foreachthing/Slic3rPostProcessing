@@ -253,9 +253,10 @@ ModelManifest.xml
 
 # FAKE - F# Make
 .fake/
-SPP-Python/recopy_14864.bat
-SPP-Python/14864.3mf
+SPP-Python/recopy_*.bat
+SPP-Python/*.3mf
 SPP-Python/Slic3rPostProcessor.py.bak*
 SPP-Python/config.ini
 SPP-Python/*.bak_*
 SPP-Python/recopy_gcode.bat
+SPP-Python/Slic3rPostProcessor_old.py
