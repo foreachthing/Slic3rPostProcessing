@@ -16,20 +16,28 @@ Only requirement: the gcode has to have `;HEIGHT:[layer_z]` after `G92 E0`, or a
 
 
 ### Parameters for the Python Version
-1. Optional: `--xy` will move to X and Y first, then drops on Z (eases-in a bit: full speed to 15 times "first layer height", then at half speed to first layer height).
+- Option: `--xy` will move to X and Y first, then drops on Z (eases-in a bit: full speed to 15 times "first layer height", then at half speed to first layer height).
              Omitting this option will lead to XYZ simultaneous move to first point. This will still clear the clips on the Ultimaker 2 plate. If not, you'd have to edit your start gcode to place the nozzle somewhere "better" (i.e. in the center of the bed) first.
-2. Optional: `--oc` obscures slicer configuration at the end of the file. None of the settings will remain for anyone to see.
-3. Optional: `--rk` removes comments except configuration and real comments.
-4. Optional: `--rak` removes _all_ comments.
-5. Optional: `--backup` create a backup file if True is passed.
-6. Optional: `--filecounter` adds a file counter (prefix) to the output file name.
-7. Optional: &ensp;`--rev` reverse counter (count down).
-8. Optional: &ensp;`--setcounter` set counter manually to this [int].
-9. Optional: &ensp;`--digits` set counter's number of digits. I.e. 5 = 00123.
-10. Optional: `--notprusaslicer` should work with non-PrusaSlic3r (not tested!).
-11. Optional: `--prog` a progress bar will be pushed to display (M117).
-12. Optional:  `--pwidth` progress bar width in chars (= display-char-width - 2).
-13. GCode file name (will be provided by the Slicer; _must_ be provided if used as standalone)
+- Option: `--oc` obscures slicer configuration at the end of the file. None of the settings will remain for anyone to see.
+- Option: `--rk` removes comments except configuration and real comments.
+- Option: `--rak` removes _all_ comments.
+- Option: `--backup` Create a backup file, if True is passed. (Default: False).
+- Option: `--filecounter` adds a file counter (prefix) to the output file name.
+- Option: `--rev` reverse counter (count down).
+- Option: `--setcounter  int` set counter manually to this [int].
+- Option: `--digits int` set counter's number of digits. I.e. 5 = 00123.
+- Option: `--easeinfactor int` Scale Factor for ease in on Z. Z moves fast to this point then slows down.Scales the first layer height by this factor.
+- Option: `--notprusaslicer` should work with non-PrusaSlic3r (not tested!).
+- Option: `--notprusaslicer` Pass argument for any other slicer (based on Slic3r) than PrusaSlicer.
+- Option: `--craftwaretypes` Pass argument if you want to view GCode in Craftware.
+- Option: `--nomove` If --nomove is provided, no changes to the Start-GCode will be made.
+- Option: `--numlayer`  Adds total number of layers to slice-info of G-Code file.
+- Option: `--prog` If --prog is provided, a progress bar instead of layer number/percentage, will be added to your GCode file and displayed on your printer (M117).
+- Option: `--proglayer` If --proglayer is provided, progress is reported as layer number/of layers, (Default: False)
+- Option: `--pwidth int` Define the progress bar length in characters. You might need to adjust the default value. Allow two more chars for brackets. Example: [OOOOO.............].
+- Option: `--pchar str` Set progress bar character. (Default: O)
+- Required: GCode file name (will be provided by the Slicer; _must_ be provided if used as standalone)
+
 
 
 ### Installation
