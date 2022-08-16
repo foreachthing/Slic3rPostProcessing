@@ -17,6 +17,8 @@
     - use with non PrusaSlicer Slicer
     - Add sort-of progressbar as M117 command
     - Option to disable Cura-move with '--nomove' parameter
+    - Option for coloring output to be viewed in CraftWare
+    - Option to add total number of layers to slice-info block
 
     Current behaviour:
     1. Heat up, down nozzle and ooze at your discretion.
@@ -29,6 +31,7 @@
       Configuration (make sure the paths are valid on your system):
       "C:/Program Files/Python39/python.exe" "c:/dev/Slic3rPostProcessing/
         SPP-Python/Slic3rPostProcessor.py" --xy --backup --rk --filecounter;
+    - Open a console / command line and type "Slic3rPostProcessor.py -h" for help.
 
 """
 
@@ -84,12 +87,20 @@ def argumentparser():
                         help='One or more GCode file(s) to be processed '
                         '- at least one is required.')
 
+    parser.add_argument('--backup', action='store_true', default=False,
+                        help='Create a backup file, if True is passed. '
+                        '(Default: %(default)s)')
+
     parser.add_argument('--notprusaslicer', action='store_true', default=False,
                         help='Pass argument for any other slicer (based on Slic3r) than '
                         'PrusaSlicer.')
 
     parser.add_argument('--craftwaretypes', action='store_true', default=False,
                         help='Pass argument if you want to view GCode in Craftware.')
+
+    grp_info = parser.add_argument_group('Slicer Info')
+    grp_info.add_argument('--numlayer', action='store_true', default=False,
+                          help='Adds total number of layers to slice-info of G-Code file.')
 
     move_x_group = parser.add_mutually_exclusive_group()
     move_x_group.add_argument('--xy', action='store_true', default=False,
@@ -118,10 +129,6 @@ def argumentparser():
                                  help='Removes all comments! Note: PrusaSlicers GCode preview '
                                  'might not render file correctly. '
                                  '(Default: %(default)s)')
-
-    parser.add_argument('--backup', action='store_true', default=False,
-                        help='Create a backup file, if True is passed. '
-                        '(Default: %(default)s)')
 
     grp_counter = parser.add_argument_group('Counter settings')
     grp_counter.add_argument('--filecounter', action='store_true', default=False,
@@ -185,6 +192,26 @@ def myerror(message):
     sys.exit(1)
 
 
+def coords(xy):
+    """Processes XY Coordinates for parking
+
+    Args:
+        xy (tuple): xy coordinates
+
+    Raises:
+        argparse.ArgumentTypeError: _description_
+
+    Returns:
+        _type_: _description_
+    """
+    try:
+        x, y = map(int, xy.split(','))
+        return x, y
+    except Exception as exc:
+        print(exc.args)
+        raise argparse.ArgumentTypeError("Park Coordinates must be x,y")
+
+
 def main(args, conf):
     """
         MAIN
@@ -194,7 +221,7 @@ def main(args, conf):
 
     for sourcefile in args.input_file:
 
-        # Count up or down
+        # Counter: count up or down
         if path.exists(sourcefile):
             # counter increment
             if args.rev:
@@ -291,6 +318,7 @@ def process_gcodefile(args, sourcefile):
     b_skip_all = False
     b_skip_removed = False
     b_start_remove_comments = False
+    b_start_add_custom_info = False
     writefile = None
     number_of_layers = 0
     current_layer = 0
@@ -328,18 +356,19 @@ def process_gcodefile(args, sourcefile):
         with open(sourcefile, "w", newline='\n', encoding='UTF-8') as writefile:
 
             # Store args in vars - easier to type, or change, add...
-            pwidth = int(args.pwidth)
-            argsxy = args.xy
-            argsnocuramove = args.nomove
-            argsobscureconfig = args.oc
             argprogress = args.prog
             argprogresslayer = args.proglayer
-            argsremovecomments = args.rk
-            argsremoveallcomments = args.rak
-            argsprogchar = args.pchar
-            argseaseinfactor = args.easeinfactor
-            fspeed = 3000
+            args_info_numlayer = args.numlayer
             argscraftwaretypes = args.craftwaretypes
+            argseaseinfactor = args.easeinfactor
+            argsnocuramove = args.nomove
+            argsobscureconfig = args.oc
+            argsprogchar = args.pchar
+            argsremoveallcomments = args.rak
+            argsremovecomments = args.rk
+            argsxy = args.xy
+            fspeed = 3000
+            pwidth = int(args.pwidth)
 
             # obscure configuration section, if parameter submitted:
             if argsobscureconfig:
@@ -438,6 +467,30 @@ def process_gcodefile(args, sourcefile):
 
                             b_edited_line = True
                             b_skip_removed = True
+
+                if args_info_numlayer:
+                    # then, add info as soon as empty line is found.
+                    # set b_start_add_custom_info = False
+                    line = strline
+
+                    if b_start_add_custom_info is False:
+                        rgx_infoblock = re.search(
+                            r'(?:^;\s)(?:.*)(extrusion width)', line, flags=re.IGNORECASE)
+
+                        if rgx_infoblock:
+                            if rgx_infoblock.group(1):
+                                b_start_add_custom_info = True
+
+                    else:
+                        # add before first empty line
+                        if line == '\n':
+                            line = f'; total number of layers: {number_of_layers}\n'
+                            line += '\n'
+
+                            # reset, so it won't do it for the entire file
+                            args_info_numlayer = False
+
+                    strline = line
 
                 if b_edited_line and not b_skip_all and not argsnocuramove:
                     line = strline
