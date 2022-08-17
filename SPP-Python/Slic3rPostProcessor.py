@@ -484,7 +484,7 @@ def process_gcodefile(args, sourcefile):
                     else:
                         # add before first empty line
                         if line == '\n':
-                            line = f'; total number of layers: {number_of_layers}\n'
+                            line = f'; total number of layers = {number_of_layers}\n'
                             line += '\n'
 
                             # reset, so it won't do it for the entire file
