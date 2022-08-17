@@ -20,6 +20,9 @@ SPP-Python/*.py.bak
 .vscode/
 *.code-workspace
 
+# virtual environment
+.venv/
+
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 
