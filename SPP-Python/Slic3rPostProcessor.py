@@ -317,7 +317,7 @@ def process_gcodefile(args, sourcefile):
     b_edited_line = False
     b_skip_all = False
     b_skip_removed = False
-    b_start_remove_comments = False
+    b_start_remove_comments = True
     b_start_add_custom_info = False
     writefile = None
     number_of_layers = 0
@@ -468,12 +468,13 @@ def process_gcodefile(args, sourcefile):
                             b_edited_line = True
                             b_skip_removed = True
 
+                # add Total Layer Count to Slicer Info-Block
                 if args_info_numlayer:
-                    # then, add info as soon as empty line is found.
-                    # set b_start_add_custom_info = False
                     line = strline
 
                     if b_start_add_custom_info is False:
+                        # find first "extrusion width", to make sure we're
+                        # in the info-block
                         rgx_infoblock = re.search(
                             r'(?:^;\s)(?:.*)(extrusion width)', line, flags=re.IGNORECASE)
 
@@ -482,12 +483,12 @@ def process_gcodefile(args, sourcefile):
                                 b_start_add_custom_info = True
 
                     else:
-                        # add before first empty line
+                        # add Total Layer Count before first empty line
                         if line == '\n':
                             line = f'; total number of layers = {number_of_layers}\n'
                             line += '\n'
 
-                            # reset, so it won't do it for the entire file
+                            # reset, so it won't do it anymore
                             args_info_numlayer = False
 
                     strline = line
@@ -550,6 +551,7 @@ def process_gcodefile(args, sourcefile):
 
                     strline = line
 
+                # Replace PrusaSlicer terms with CraftWare descriptions
                 if argscraftwaretypes:
                     if strline.startswith(";TYPE:"):
                         if 'Skirt/Brim' in strline:
@@ -576,24 +578,20 @@ def process_gcodefile(args, sourcefile):
                 if (i + 1) > i_line_after_edit and argsremovecomments and b_start_remove_comments:
                     if strline.startswith("; prusaslicer_config"):
                         b_start_remove_comments = False
-                    if (not strline.startswith(";") or strline.startswith(" ;")):
-                        rgx = re.search(r'^[^;\s].*(\;)',
-                                        strline, flags=re.IGNORECASE)
-                        if rgx:
-                            line = rgx.group(0)[:-1].strip()
-                            strline = line + '\n'
+                    if not strline.lstrip().startswith(';'):
+                        # remove tabs and strip spaces as well
+                        strline = slitbychar(strline, ';').replace(
+                            '\t', '').strip() + '\n'
 
+                # Remove all lines starting with ; (comment)!
                 if argsremoveallcomments:
-                    if (strline.startswith(";") or strline.startswith(" ;")):
+                    if strline.lstrip().startswith(';') or strline.lstrip().startswith('\n'):
                         strline = ""
                     else:
-                        rgx = re.search(r'(.*)(?:;)', strline,
-                                        flags=re.IGNORECASE)
-                        if rgx:
-                            line = rgx.group(0)[:-1].strip()
-                            strline = line + '\n'
-                        else:
-                            strline = ""
+                        # remove tabs and strip spaces as well
+                        strline = slitbychar(strline, ';').replace(
+                            '\t', '').strip() + '\n'
+
 
                 #
                 # Write line back to file
@@ -606,6 +604,22 @@ def process_gcodefile(args, sourcefile):
     finally:
         writefile.close()
         readfile.close()
+
+
+def slitbychar(mystring, mychar):
+    """ Split STRING by CHAR and return first block
+
+    Args:
+        mystring (string): String to split
+        mychar (string): Split by char
+
+    Returns:
+        string: First block of splitted string
+    """
+    # python 3: split by ; and only use first split.
+    # The rest is discarded in *_, if any leftovers exist.
+    a, *_ = mystring.split(mychar)
+    return a
 
 
 # Write config file
