@@ -1,6 +1,12 @@
 # /usr/bin/python3
 """ Post Processing Script for Slic3r, PrusaSlicer and SuperSlicer.
-    This will make the curent start behaviour more like Curas'.1
+    This will make the curent start behaviour more like Curas'.
+
+    TODO: Line ;WIDTH:0.388362
+               G1 X138.903 Y97.76 E9.23279 ; infill
+        should be merged into one. ArcWelder cannot find points.
+      One solution: add "G-Code Substitution" in PrusaSlicer ->
+        Find: ^((?:;WIDTH:).*)$ -> Replace with [EMPTY] -> REGEX checked
 
     New behaviour:
     - Heat up, down nozzle and ooze at your discretion.
@@ -14,11 +20,12 @@
     - Set digits for counter
     - Reset counter
     - Reverse counter
-    - use with non PrusaSlicer Slicer
+    - use with non PrusaSlicer Slicer (Prusa uses a temp file first).
     - Add sort-of progressbar as M117 command
     - Option to disable Cura-move with '--nomove' parameter
     - Option for coloring output to be viewed in CraftWare
     - Option to add total number of layers to slice-info block
+    - OrcaSlicer: Option to export GCode to be viewed in PrusaSlicer GCode-Viewer.
 
     Current behaviour:
     1. Heat up, down nozzle and ooze at your discretion.
@@ -44,6 +51,7 @@
 #
 # "cheat" pylint, because it can be annoying
 # pylint: disable = line-too-long, invalid-name, broad-except
+# noqa: E501
 #
 
 import decimal
@@ -91,17 +99,23 @@ def argumentparser():
                         help='Create a backup file, if True is passed. '
                         '(Default: %(default)s)')
 
+    # "Other"-Slicers stuff
     parser.add_argument('--notprusaslicer', action='store_true', default=False,
                         help='Pass argument for any other slicer (based on Slic3r) than '
-                        'PrusaSlicer.')
+                        'PrusaSlicer. This is for handling the temp-file and then '
+                        'replace the original file.')
 
     parser.add_argument('--craftwaretypes', action='store_true', default=False,
                         help='Pass argument if you want to view GCode in Craftware.')
+
+    parser.add_argument('--orc2ps', action='store_true', default=False,
+                        help='Create comments, for OcrcaSlicer to be viewed in PrusaSlicer Viewer.')
 
     grp_info = parser.add_argument_group('Slicer Info')
     grp_info.add_argument('--numlayer', action='store_true', default=False,
                           help='Adds total number of layers to slice-info of G-Code file.')
 
+    # the CURA Move
     move_x_group = parser.add_mutually_exclusive_group()
     move_x_group.add_argument('--xy', action='store_true', default=False,
                               help='If --xy is provided, the printer will move to X and Y '
@@ -114,6 +128,7 @@ def argumentparser():
                               'Start-GCode will be made. '
                               '(Default: %(default)s)')
 
+    # Remove Comments
     comment_x_group = parser.add_mutually_exclusive_group()
     comment_x_group.add_argument('--oc', action='store_true', default=False,
                                  help='WIP! Use at own risk - does not yet produce valid PS-gcode.\n'
@@ -130,6 +145,7 @@ def argumentparser():
                                  'might not render file correctly. '
                                  '(Default: %(default)s)')
 
+    # Counter
     grp_counter = parser.add_argument_group('Counter settings')
     grp_counter.add_argument('--filecounter', action='store_true', default=False,
                              help='Add a prefix counter, if desired, to the output gcode file. '
@@ -144,9 +160,9 @@ def argumentparser():
     grp_counter.add_argument('--setcounter', action='store', metavar='int', type=int,
                              help='Reset counter to this [int]. Or edit spp_config.cfg directly.')
 
-    grp_counter.add_argument('--digits', action='store', metavar='int', type=int, default=6,
+    grp_counter.add_argument('--digits', action='store', metavar='int', type=int, default=ppsc.counterdigits,
                              help='Number of digits for counter. '
-                             f'Currently set to: {ppsc.counterdigits}. '
+                             f'Currently set to: {ppsc.counterdigits} in config file. '
                              '(Default: %(default)s)')
 
     grp_counter.add_argument('--easeinfactor', action='store', metavar='int', type=int, default=15,
@@ -154,6 +170,7 @@ def argumentparser():
                              'Scales the first layer height by this factor. '
                              '(Default: %(default)s)')
 
+    # Progress Bar
     grp_progress = parser.add_argument_group('Progress bar settings')
     grp_progress.add_argument('--prog', action='store_true', default=False,
                               help='If --prog is provided, a progress bar instead of layer number/percentage, '
@@ -189,7 +206,7 @@ def myerror(message):
     print(message)
     pymsgbox.alert(text=message,
                    title="Post-Processing Script", button=pymsgbox.OK_TEXT)
-    sys.exit(1)
+    # sys.exit(0)
 
 
 def coords(xy):
@@ -210,6 +227,35 @@ def coords(xy):
     except Exception as exc:
         print(exc.args)
         raise argparse.ArgumentTypeError("Park Coordinates must be x,y")
+
+
+# replace OrcaSlicer Types with PrusaSlicer Types as well
+orca_replace = [
+    ("Skirt", "Skirt/Brim"),
+    ("Brim", "Skirt/Brim"),
+    ("Support interface", "Support material interface"),
+    ("Support", "Support material"),
+    ("Sparse infill", "Internal infill"),
+    ("Internal solid infill", "Solid infill"),
+    ("Bridge", "Bridge infill"),
+    ("Overhang wall", "Overhang perimeter"),
+    ("Bottom surface", "Solid infill"),
+    ("Top surface", "Solid infill"),
+    ("Outer wall", "External perimeter"),
+    ("Inner wall", "Perimeter"),
+]
+
+# add CraftWare Types to PrusaSlicer Types
+craft_replace = [
+    ("Skirt/Brim", "Skirt"),
+    ("Support material interface", "SoftSupport"),
+    ("Support material", "Support"),
+    ("Solid infill", "Infill"),
+    ("Internal solid infill", "Solid infill"),
+    ("Gap fill", "Perimeter"),
+    ("External perimeter", "Perimeter"),
+    ("Perimeter", "Loop")
+]
 
 
 def main(args, conf):
@@ -269,8 +315,8 @@ def main(args, conf):
 
                 else:
                     # NOT PrusaSlicer:
-                    destfile = ntpath.join(ntpath.dirname(sourcefile), counter
-                                           + '_' + ntpath.basename(sourcefile))
+                    destfile = ntpath.join(ntpath.dirname(
+                        sourcefile), counter + '_' + ntpath.basename(sourcefile))
 
                     copy2(sourcefile, destfile)
                     remove(sourcefile)
@@ -333,7 +379,7 @@ def process_gcodefile(args, sourcefile):
         len_lines = len(lines)
         for line_index in range(len_lines):
             # start from the back
-            strline = lines[len_lines-line_index-1]
+            strline = lines[len_lines - line_index - 1]
 
             if is_config_comment is True:
                 # Count number of lines of the configuration section
@@ -369,19 +415,20 @@ def process_gcodefile(args, sourcefile):
             argsxy = args.xy
             fspeed = 3000
             pwidth = int(args.pwidth)
+            argsorca = args.orc2ps
 
             # obscure configuration section, if parameter submitted:
             if argsobscureconfig:
                 len_lines = len(lines)
                 for line_index in range(len_lines):
                     # start from the back
-                    strline = strline = lines[len_lines-line_index-1]
+                    strline = strline = lines[len_lines - line_index - 1]
                     if strline == "; prusaslicer_config = begin\n":
                         break
                     if strline != "; prusaslicer_config = end\n":
                         strline = obscure_configuration(strline)
 
-                    lines[len_lines-line_index-1] = strline
+                    lines[len_lines - line_index - 1] = strline
 
             # REMOVE configuration
             # del lines[len(lines)-ICOUNT:len(lines)]
@@ -551,36 +598,32 @@ def process_gcodefile(args, sourcefile):
 
                     strline = line
 
-                # Replace PrusaSlicer terms with CraftWare descriptions
-                if argscraftwaretypes:
-                    if strline.startswith(";TYPE:"):
-                        if 'Skirt/Brim' in strline:
-                            strline = ';segType:Skirt\n;TYPE:Skirt/Brim\n'
+                # Replace TYPES to view CGode in "other" Viewers
+                if strline.startswith(";TYPE:"):
+                    strtype = strline.replace(";TYPE:", "")
 
-                        elif 'Support material interface' in strline:
-                            strline = ';segType:SoftSupport\n;TYPE:Support material interface\n'
+                    # Replace PrusaSlicer terms with CraftWare descriptions
+                    # If desired.
+                    if argscraftwaretypes:
+                        for x_var, y_var in craft_replace:
+                            if strtype.lower().strip() == str(y_var).lower().strip():
+                                strline = f";segType:{x_var}\n;TYPE:{y_var}\n"
+                                break
 
-                        elif 'Support material' in strline:
-                            strline = ';segType:Support\n;TYPE:Support material\n'
-
-                        elif ':Solid infill' in strline or 'Internal infill' in strline:
-                            strline = ';segType:Infill\n;TYPE:Solid infill\n'
-
-                        elif 'Gap fill' in strline:
-                            strline = ';segType:Perimeter\n;TYPE:Gap fill\n'
-
-                        elif 'External perimeter' in strline:
-                            strline = ';segType:Perimeter\n;TYPE:External perimeter\n'
-
-                        elif 'Perimeter' in strline:
-                            strline = ';segType:Loop\n;TYPE:Perimeter\n'
+                    # if sliced with OrcaSlicer, replace types
+                    if argsorca:
+                        for x_var, y_var in orca_replace:
+                            if strtype.lower().strip() == str(x_var).lower().strip():
+                                # strline = f";TYPE:{x_var}\n;TYPE:{y_var}\n"
+                                strline = f";TYPE:{y_var}\n"
+                                break
 
                 if (i + 1) > i_line_after_edit and argsremovecomments and b_start_remove_comments:
                     if strline.startswith("; prusaslicer_config"):
                         b_start_remove_comments = False
                     if not strline.lstrip().startswith(';'):
                         # remove tabs and strip spaces as well
-                        strline = slitbychar(strline, ';').replace(
+                        strline = splitbychar(strline, ';').replace(
                             '\t', '').strip() + '\n'
 
                 # Remove all lines starting with ; (comment)!
@@ -589,9 +632,8 @@ def process_gcodefile(args, sourcefile):
                         strline = ""
                     else:
                         # remove tabs and strip spaces as well
-                        strline = slitbychar(strline, ';').replace(
+                        strline = splitbychar(strline, ';').replace(
                             '\t', '').strip() + '\n'
-
 
                 #
                 # Write line back to file
@@ -606,7 +648,7 @@ def process_gcodefile(args, sourcefile):
         readfile.close()
 
 
-def slitbychar(mystring, mychar):
+def splitbychar(mystring, mychar):
     """ Split STRING by CHAR and return first block
 
     Args:
@@ -638,9 +680,7 @@ def reset_counter(conf, set_counter_to):
         Reset Counter
     """
     if path.exists(ppsc.configfile):
-
         conf.set('DEFAULT', 'FileIncrement', str(set_counter_to))
-
         write_config_file(conf)
 
 
@@ -659,9 +699,9 @@ def format_number(num):
     digits = ''.join(str(d) for d in tup.digits)
     if delta <= 0:
         zeros = abs(tup.exponent) - len(tup.digits)
-        val = '0.' + ('0'*zeros) + digits
+        val = '0.' + ('0' * zeros) + digits
     else:
-        val = digits[:delta] + ('0'*tup.exponent) + '.' + digits[delta:]
+        val = digits[:delta] + ('0' * tup.exponent) + '.' + digits[delta:]
     val = val.rstrip('0')
     if val[-1] == '.':
         val = val[:-1]
