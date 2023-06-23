@@ -27,9 +27,9 @@ Only requirement: the gcode has to have `;HEIGHT:[layer_z]` after `G92 E0`, or a
 - Option: `--setcounter  int` set counter manually to this [int].
 - Option: `--digits int` set counter's number of digits. I.e. 5 = 00123.
 - Option: `--easeinfactor int` Scale Factor for ease in on Z. Z moves fast to this point then slows down.Scales the first layer height by this factor.
-- Option: `--notprusaslicer` should work with non-PrusaSlic3r (not tested!).
 - Option: `--notprusaslicer` Pass argument for any other slicer (based on Slic3r) than PrusaSlicer.
 - Option: `--craftwaretypes` Pass argument if you want to view GCode in Craftware.
+- Option: `--orc2ps` Create comments, for OcrcaSlicer to be viewed in PrusaSlicer Viewer.
 - Option: `--nomove` If --nomove is provided, no changes to the Start-GCode will be made.
 - Option: `--numlayer`  Adds total number of layers to slice-info of G-Code file.
 - Option: `--prog` If --prog is provided, a progress bar instead of layer number/percentage, will be added to your GCode file and displayed on your printer (M117).
