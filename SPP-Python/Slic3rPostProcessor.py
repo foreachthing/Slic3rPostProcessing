@@ -221,7 +221,7 @@ def myerror(message):
     print(message)
     pymsgbox.alert(text=message,
                    title="Post-Processing Script", button=pymsgbox.OK_TEXT)
-    sys.exit(1)
+    # sys.exit(0)
 
 
 def coords(xy):
@@ -330,8 +330,8 @@ def main(args, conf):
 
                 else:
                     # NOT PrusaSlicer:
-                    destfile = ntpath.join(ntpath.dirname(sourcefile), counter
-                                           + '_' + ntpath.basename(sourcefile))
+                    destfile = ntpath.join(ntpath.dirname(
+                        sourcefile), counter + '_' + ntpath.basename(sourcefile))
 
                     copy2(sourcefile, destfile)
                     remove(sourcefile)
