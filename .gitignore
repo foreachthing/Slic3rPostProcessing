@@ -15,6 +15,7 @@ spp_config.cfg
 *.app
 SPP-Python/spp_config.cfg
 SPP-Python/*.py.bak
+SPP-Python/*.bat
 
 # vscode settings
 .vscode/
