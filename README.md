@@ -1,12 +1,22 @@
 # Slic3r-Post-Processing
 
+
+## THIS IS THE DEV BRANCH!!
+Do not use `--iobh` parameter.
+
+## Disclaimer:
+The script provided below is solely for informational and educational purposes. The use of this script is entirely at your own risk. By utilizing the script, you acknowledge that you have read this disclaimer and agree not to hold the script's creator responsible for any damages, losses, or undesirable outcomes that may arise from its use.
+
+The creator of this script shall not be liable for any direct, indirect, incidental, consequential, or special damages arising from the use or misuse of the script, including but not limited to data loss, system malfunction, or business interruptions.
+
+
 ## Important!
 Due to Python naming conventions, I've renamed the main file to `main.py`. It's no longer `Slic3rPostProcessor`. Everything else remains the same. So, don't forget to change the settings in your slicer.
 
 ### Example
 PrusaSlicer possible post-processing script:
 
-`"C:\Users\USER\AppData\Local\Programs\Python\Python311\python.exe" "h:\dev\Slic3rPostProcessing\SPP-Python\main.py" --filecounter --nomove --proglayer --iob -iobh=4 --iobfl;`
+`"C:\Users\USER\AppData\Local\Programs\Python\Python311\python.exe" "h:\dev\Slic3rPostProcessing\main.py" --filecounter --nomove --proglayer --iob -iobh=4 --iobfl;`
 
 This line will enable printing individual objects in blocks of 4 mm (`--iob --iobh=4`), first layer of each object will be printed as first layer `--fl`. Then it will add a counter prefix to the output file `--filecounter`. Also, progress is reported as layer number/of layers `--proglayer`. And finally if `--nomove` is provided, no changes to the start-GCode will be made.
 
@@ -17,7 +27,7 @@ OrcaSlicer needs more testing as I'm new to it.
 
 
 ## Python Post-Processing Script:
-In /[SPP-Python](https://github.com/foreachthing/Slic3rPostProcessing/tree/master/SPP-Python)/ is the Python-version of the "Cura"-move:
+This is the Python-version of the "Cura"-move:
 1. Heat up, down nozzle and ooze at your discretion.
 1. Move to the first entry point on XYZ simultaneously.
     - Before: heat up, ooze, move to first layer height (Z), move to first start point (XY). This could lead to crashing the nozzle into the clips.
@@ -43,7 +53,7 @@ Only requirement: the gcode has to have `;HEIGHT:[layer_z]` after `G92 E0`, or a
 - Option: `--easeinfactor int` Scale Factor for ease in on Z. Z moves fast to this point then slows down.Scales the first layer height by this factor.
 - Option: `--notprusaslicer` Pass argument for any other slicer (based on Slic3r) than PrusaSlicer.
 
-- Option: `--iob` if this parameter is provided, individual objects will be printed in blocks. This is required for `--fl` as well.
+- Option: `--iob` if this parameter is provided, individual objects will be printed in blocks. This is required for `--iobfl` as well.
 - Option: `--iobh` sets the max. height of each block to be printed. # # # THIS IS STILL AN EARLY DEVELOPMENT AND DOES NOT PROCUDE SAVE GCODE !!!!!!!!!! You could damage your printer! USE AT OWN RISK!!!
 - Option: `--iobfl` if set, the first layer of all objects will be printed first.
 
