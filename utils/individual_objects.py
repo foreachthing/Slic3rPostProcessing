@@ -289,78 +289,84 @@ def process_split_by_block(lines, slicer, max_height=5, first_layers_first=False
                     if (current_z - temp_z) >= temp_max_height * h_factor:
                         # we're ready to leave this block!
 
+                        # REMOVE FOR SAFETY REASONS!!!
+                        # REMOVE FOR SAFETY REASONS!!!
+                        # REMOVE FOR SAFETY REASONS!!!
+                        # REMOVE FOR SAFETY REASONS!!!
+                        # REMOVE FOR SAFETY REASONS!!!
+                        # REMOVE FOR SAFETY REASONS!!!
+
                         # Inject line with a move to a safe zone!!
                         # This is the next G1 X? Y? line from the _NEXT_ object
 
-                        s = 0
+                        # s = 0
 
-                        while True:
+                        #                         while True:
 
-                            # rgz = regx_z.search(temp_next_block[0])
-                            # if rgz:
-                            #     asdf = rgz.group(0)
-                            #     asdf = asdf.replace(";", "").replace(":", "")
-                            #     print(asdf)
+                        #                             # rgz = regx_z.search(temp_next_block[0])
+                        #                             # if rgz:
+                        #                             #     asdf = rgz.group(0)
+                        #                             #     asdf = asdf.replace(";", "").replace(":", "")
+                        #                             #     print(asdf)
 
-                            # safezone = "move to first perimeter point":
-                            safezone = regx_safe.search(temp_next_block[s])
+                        #                             # safezone = "move to first perimeter point":
+                        #                             safezone = regx_safe.search(temp_next_block[s])
 
-                            if safezone:
-                                ln_prev = temp_next_block[s-1]
-                                ln = temp_next_block[s]
+                        #                             if safezone:
+                        #                                 ln_prev = temp_next_block[s-1]
+                        #                                 ln = temp_next_block[s]
 
-# G1 X105.991 Y118.715 F9000 ; move inwards before travel
-# ;LAYER_CHANGE
-# ;Z:19
-# ;HEIGHT:0.200001
-# ;BEFORE_LAYER_CHANGE
-# ;layer:94;
-# M117 Layer 94;
+                        # # G1 X105.991 Y118.715 F9000 ; move inwards before travel
+                        # # ;LAYER_CHANGE
+                        # # ;Z:19
+                        # # ;HEIGHT:0.200001
+                        # # ;BEFORE_LAYER_CHANGE
+                        # # ;layer:94;
+                        # # M117 Layer 94;
 
-# G1 E.61904 F3000 ; retract
-# G92 E0 ; reset extrusion distance
-# G1 Z19 F9000 ; move to next layer (94)             <- only, if current z is LOWER!!!
-# G1 X102.944 Y117.192 ; move to first infill point   <---------------------- ?
-# G1 E6 F3000 ;  ; unretract
-# ;TYPE:Solid infill
-# G1 F600
+                        # # G1 E.61904 F3000 ; retract
+                        # # G92 E0 ; reset extrusion distance
+                        # # G1 Z19 F9000 ; move to next layer (94)             <- only, if current z is LOWER!!!
+                        # # G1 X102.944 Y117.192 ; move to first infill point   <---------------------- ?
+                        # # G1 E6 F3000 ;  ; unretract
+                        # # ;TYPE:Solid infill
+                        # # G1 F600
 
+                        # # TODO: Orca still crashes.... if the current object is finished before moving to the next object.
+                        # # need to find next Z of next object and move there to avoid crashes!!!!
+                        # # sometimes it moves in -Z, then to new position and this causes a crash as well ....
 
-# TODO: Orca still crashes.... if the current object is finished before moving to the next object.
-# need to find next Z of next object and move there to avoid crashes!!!!
-# sometimes it moves in -Z, then to new position and this causes a crash as well ....
+                        #                                 #  NOT YET WORKING - AAAAARGGHHHhhhhh
+                        #                                 rgx_z1 = regx_z_value.search(ln_prev)
+                        #                                 if rgx_z1:
+                        #                                     ln1 = "; injected by foreachthing\n"
+                        #                                     # ln1 += "G0 " + asdf + '\n'
 
-                                #  NOT YET WORKING - AAAAARGGHHHhhhhh
-                                rgx_z1 = regx_z_value.search(ln_prev)
-                                if rgx_z1:
-                                    ln1 = "; injected by foreachthing\n"
-                                    # ln1 += "G0 " + asdf + '\n'
+                        #                                     ln = ln.replace(
+                        #                                         rgx_z1.group(0) + " ", "") + '\n'
+                        #                                     ln += 'G1 ' + \
+                        #                                         rgx_z1.group(
+                        #                                             0) + '; move to next layer of next object\n'
 
-                                    ln = ln.replace(
-                                        rgx_z1.group(0) + " ", "") + '\n'
-                                    ln += 'G1 ' + \
-                                        rgx_z1.group(
-                                            0) + '; move to next layer of next object\n'
+                        #                                     ln = ln1 + ln
 
-                                    ln = ln1 + ln
-
-                                master_list.append(ln)
-                                break
-                            s += 1
+                        #                                 master_list.append(ln)
+                        #                                 break
+                        #                             s += 1
 
                         break
 
                 # remove (pop) line from temp_mainblocks and append it to master_list
                 master_list.append(temp_mainblocks.pop(0))
 
-                # # finished _this_ object to the last line
-                # make sure we're above the next object, becaus it could be taller!
-                if idx > 0 and len(temp_mainblocks) == 1:
-                    nln = "; finished this object and now move in Z some extra:"
-                    extra = float(current_z)+max_height
-                    nln += '\nG0 Z' + str(extra) + '\n'
+                # # # finished _this_ object to the last line
+                # # make sure we're above the next object, becaus it could be taller!
+                # if idx > 0 and len(temp_mainblocks) == 1:
+                #     nln = "; finished this object and now move in Z some extra:"
+                #     extra = float(current_z)+max_height
+                #     nln += '\nG0 Z' + str(extra) + '\n'
 
-                    master_list.append(nln)
+                #     master_list.append(nln)
 
             lst_objects[idx] = temp_mainblocks
 
