@@ -1,6 +1,6 @@
 # Slic3r-Post-Processing
 
-# NOTE: I have abandoned this project.
+# ❗❗I have abandoned this project ❗❗
 It does currently, as of May 2024, not work with PrusaSlicer (and most likely any other slicer) anymore. Since I don't use this feature, I have no desire in hunting down my old bugs.
 Maybe _you_ can pick it up and make the necessary adjustments? 😉
 
